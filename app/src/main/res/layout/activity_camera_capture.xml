@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="72dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="18dp"
+        android:paddingEnd="14dp">
+
+        <TextView
+            android:id="@+id/btnCaptureClose"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="X"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <TextView
+            android:id="@+id/btnFlash"
+            android:layout_width="76dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="閃光關"
+            android:textColor="#FFFFFF"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/btnHd"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="HD"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnCaptureMenu"
+            android:layout_width="42dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="⋮"
+            android:textColor="#FFFFFF"
+            android:textSize="30sp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#050506">
+
+        <TextureView
+            android:id="@+id/textureCameraPreview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <TextView
+            android:id="@+id/txtCaptureHint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:lineSpacingExtra="4dp"
+            android:text="將文件放入畫面中央\n按下快門開始掃描"
+            android:textColor="#4E5258"
+            android:textSize="18sp" />
+    </FrameLayout>
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:background="#000000"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
+
+            <TextView
+                android:layout_width="112dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="拍圖轉 Word"
+                android:textColor="#C4C7CC"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="92dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="電子簽名"
+                android:textColor="#C4C7CC"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="112dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="單張拍攝"
+                android:textColor="#40D6C1"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="112dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="連續拍攝"
+                android:textColor="#C4C7CC"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="92dp"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="AI 擦除"
+                android:textColor="#C4C7CC"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:background="#000000"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp">
+
+        <LinearLayout
+            android:id="@+id/btnCaptureAllFunctions"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:gravity="center"
+                android:text="▦"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="全部功能"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:id="@+id/btnShutter"
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@drawable/bg_camera_shutter_ring"
+            android:padding="10dp">
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_camera_shutter_inner" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:id="@+id/btnCaptureImportImage"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:gravity="center"
+                android:text="↩"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="導入圖片"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnCaptureImportDocument"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:gravity="center"
+                android:text="↪"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="導入文檔"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

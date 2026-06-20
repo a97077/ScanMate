@@ -86,16 +86,16 @@ public class MainActivity extends AppCompatActivity {
         View navToolbox = findViewById(R.id.navToolbox);
         View navMe = findViewById(R.id.navMe);
 
-        btnSelectImage.setOnClickListener(v -> openScanActivity());
-        btnImportImage.setOnClickListener(v -> openScanActivity());
-        btnFloatingScan.setOnClickListener(v -> openScanActivity());
+        btnSelectImage.setOnClickListener(v -> openCaptureActivity("scan"));
+        btnImportImage.setOnClickListener(v -> openCaptureActivity("import_image"));
+        btnFloatingScan.setOnClickListener(v -> openCaptureActivity("scan"));
 
         btnSavePdf.setOnClickListener(v -> {
             startActivity(new Intent(this, PdfToolsActivity.class));
         });
 
         btnSharePdf.setOnClickListener(v -> importDocumentLauncher.launch(new String[]{"application/pdf"}));
-        btnIdScan.setOnClickListener(v -> openScanActivity("id"));
+        btnIdScan.setOnClickListener(v -> openCaptureActivity("id"));
         btnOcr.setOnClickListener(v -> startActivity(new Intent(this, TextExtractActivity.class)));
         btnAiStudy.setOnClickListener(v -> startActivity(new Intent(this, StudyActivity.class)));
         btnAll.setOnClickListener(v -> openToolboxActivity());
@@ -135,6 +135,12 @@ public class MainActivity extends AppCompatActivity {
     private void openScanActivity(String mode) {
         Intent intent = new Intent(this, ScanActivity.class);
         intent.putExtra("scan_mode", mode);
+        startActivity(intent);
+    }
+
+    private void openCaptureActivity(String mode) {
+        Intent intent = new Intent(this, CameraCaptureActivity.class);
+        intent.putExtra("capture_mode", mode);
         startActivity(intent);
     }
 

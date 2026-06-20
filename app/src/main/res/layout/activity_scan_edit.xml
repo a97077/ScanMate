@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="66dp"
+        android:background="#202124"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="12dp">
+
+        <TextView
+            android:id="@+id/btnEditBack"
+            android:layout_width="54dp"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:text="‹"
+            android:textColor="#FFFFFF"
+            android:textSize="42sp" />
+
+        <TextView
+            android:id="@+id/txtEditTitle"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="center_vertical"
+            android:singleLine="true"
+            android:text="ScanMate"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/imgEditPreview"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:adjustViewBounds="true"
+        android:background="#000000"
+        android:padding="24dp"
+        android:scaleType="fitCenter" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="92dp"
+        android:background="#111113"
+        android:overScrollMode="never"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
+
+            <TextView
+                android:id="@+id/filterOriginal"
+                android:layout_width="108dp"
+                android:layout_height="72dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_thumb"
+                android:gravity="center"
+                android:text="原圖"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/filterBright"
+                android:layout_width="108dp"
+                android:layout_height="72dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_thumb"
+                android:gravity="center"
+                android:text="增亮"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/filterSharp"
+                android:layout_width="108dp"
+                android:layout_height="72dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_thumb"
+                android:gravity="center"
+                android:text="增強銳化"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/filterHd"
+                android:layout_width="108dp"
+                android:layout_height="72dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_thumb"
+                android:gravity="center"
+                android:text="智慧高畫質"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/filterShadow"
+                android:layout_width="108dp"
+                android:layout_height="72dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_filter_thumb"
+                android:gravity="center"
+                android:text="去陰影"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="92dp"
+        android:background="@drawable/bg_scan_panel"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnEditRotateLeft"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="↶\n左轉"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btnEditAnnotate"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="✎\n標注"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btnEditExtractText"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="T\n提取文字"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btnEditSignature"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="✒\n電子簽名"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/btnEditConfirm"
+            android:layout_width="84dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_scan_confirm"
+            android:gravity="center"
+            android:text="✓"
+            android:textColor="#FFFFFF"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>
