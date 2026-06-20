@@ -128,16 +128,6 @@ public class MainActivity extends AppCompatActivity {
         renderRecentDocuments();
     }
 
-    private void openScanActivity() {
-        startActivity(new Intent(this, ScanActivity.class));
-    }
-
-    private void openScanActivity(String mode) {
-        Intent intent = new Intent(this, ScanActivity.class);
-        intent.putExtra("scan_mode", mode);
-        startActivity(intent);
-    }
-
     private void openCaptureActivity(String mode) {
         Intent intent = new Intent(this, CameraCaptureActivity.class);
         intent.putExtra("capture_mode", mode);

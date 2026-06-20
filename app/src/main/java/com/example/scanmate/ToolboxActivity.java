@@ -39,7 +39,9 @@ public class ToolboxActivity extends AppCompatActivity {
     private void buildToolbox() {
         addSection("掃描服務");
         addGrid(new ToolItem[]{
-                new ToolItem("證", "掃描證件", "#213D38", "#5ED5C5", this::showIdScanPlaceholder),
+                new ToolItem("證", "掃描證件", "#213D38", "#5ED5C5", () ->
+                        openCaptureActivity("id")
+                ),
                 new ToolItem("T", "提取文字", "#213D38", "#5ED5C5", () ->
                         startActivity(new Intent(this, TextExtractActivity.class))
                 ),
@@ -52,9 +54,15 @@ public class ToolboxActivity extends AppCompatActivity {
                 new ToolItem("譯", "拍照翻譯", "#26324A", "#5E8DF5", () ->
                         openFeature("translate", "拍照翻譯")
                 ),
-                new ToolItem("書", "掃描書籍", "#243B3F", "#56C7E8", this::openScanActivity),
-                new ToolItem("P", "拍 PPT", "#4A302B", "#FF765D", this::openScanActivity),
-                new ToolItem("板", "拍白板", "#243B3F", "#56C7E8", this::openScanActivity),
+                new ToolItem("書", "掃描書籍", "#243B3F", "#56C7E8", () ->
+                        openCaptureActivity("book")
+                ),
+                new ToolItem("P", "拍 PPT", "#4A302B", "#FF765D", () ->
+                        openCaptureActivity("ppt")
+                ),
+                new ToolItem("板", "拍白板", "#243B3F", "#56C7E8", () ->
+                        openCaptureActivity("whiteboard")
+                ),
                 new ToolItem("印", "水印相機", "#26324A", "#5E8DF5", () ->
                         openFeature("watermark", "水印相機")
                 )
@@ -62,7 +70,9 @@ public class ToolboxActivity extends AppCompatActivity {
 
         addSection("導入");
         addGrid(new ToolItem[]{
-                new ToolItem("圖", "導入圖片", "#213D38", "#5ED5C5", this::openScanActivity),
+                new ToolItem("圖", "導入圖片", "#213D38", "#5ED5C5", () ->
+                        openCaptureActivity("import_image")
+                ),
                 new ToolItem("文", "導入文檔", "#26324A", "#5E8DF5", () ->
                         startActivity(new Intent(this, DocumentsActivity.class))
                 )
@@ -160,10 +170,6 @@ public class ToolboxActivity extends AppCompatActivity {
         return view;
     }
 
-    private void openScanActivity() {
-        startActivity(new Intent(this, ScanActivity.class));
-    }
-
     private void openFeature(String type, String title) {
         Intent intent = new Intent(this, ToolFeatureActivity.class);
         intent.putExtra(ToolFeatureActivity.EXTRA_TYPE, type);
@@ -171,9 +177,9 @@ public class ToolboxActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    private void showIdScanPlaceholder() {
-        Intent intent = new Intent(this, ScanActivity.class);
-        intent.putExtra("scan_mode", "id");
+    private void openCaptureActivity(String mode) {
+        Intent intent = new Intent(this, CameraCaptureActivity.class);
+        intent.putExtra("capture_mode", mode);
         startActivity(intent);
     }
 

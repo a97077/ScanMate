@@ -56,6 +56,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private CameraCaptureSession cameraSession;
     private CaptureRequest.Builder previewRequestBuilder;
     private ImageReader imageReader;
+    private Uri fallbackPhotoUri;
     private HandlerThread cameraThread;
     private Handler cameraHandler;
     private Size previewSize;
@@ -68,9 +69,19 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private final ActivityResultLauncher<String> cameraPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (Boolean.TRUE.equals(granted)) {
+                    startCameraThread();
                     startCameraPreview();
                 } else {
                     showHint("未取得相機權限，仍可導入圖片掃描");
+                }
+            });
+
+    private final ActivityResultLauncher<Uri> fallbackCameraLauncher =
+            registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
+                if (Boolean.TRUE.equals(success) && fallbackPhotoUri != null) {
+                    openCropScreen(fallbackPhotoUri);
+                } else {
+                    showHint("尚未拍攝，請重新按下快門或導入圖片");
                 }
             });
 
@@ -168,6 +179,12 @@ public class CameraCaptureActivity extends AppCompatActivity {
             txtCaptureHint.postDelayed(() -> pickImageLauncher.launch("image/*"), 250);
         } else if ("id".equals(captureMode)) {
             showHint("證件掃描模式：請將證件置於畫面中央");
+        } else if ("book".equals(captureMode)) {
+            showHint("書籍掃描模式：請讓頁面攤平並保持光線均勻");
+        } else if ("ppt".equals(captureMode)) {
+            showHint("PPT 掃描模式：請對準投影片或螢幕邊界");
+        } else if ("whiteboard".equals(captureMode)) {
+            showHint("白板掃描模式：請避開反光並包含完整白板");
         }
     }
 
@@ -201,6 +218,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     }
 
     private void openCamera() {
+        startCameraThread();
         if (cameraDevice != null) {
             return;
         }
@@ -286,7 +304,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
                             cameraSession = session;
                             try {
                                 cameraSession.setRepeatingRequest(previewRequestBuilder.build(), null, cameraHandler);
-                                txtCaptureHint.setVisibility(View.GONE);
+                                runOnUiThread(() -> txtCaptureHint.setVisibility(View.GONE));
                             } catch (Exception e) {
                                 showHint("相機預覽失敗");
                             }
@@ -306,7 +324,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
     private void captureStillImage() {
         if (cameraDevice == null || cameraSession == null || imageReader == null) {
-            showHint("相機尚未準備完成，請稍候");
+            launchFallbackCamera();
             return;
         }
 
@@ -320,7 +338,18 @@ public class CameraCaptureActivity extends AppCompatActivity {
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, 90);
             cameraSession.capture(captureBuilder.build(), null, cameraHandler);
         } catch (Exception e) {
-            showHint("拍攝失敗：" + e.getMessage());
+            showHint("內建拍攝失敗，改用系統相機");
+            launchFallbackCamera();
+        }
+    }
+
+    private void launchFallbackCamera() {
+        try {
+            File photoFile = new File(getCacheDir(), "scanmate_fallback_" + System.currentTimeMillis() + ".jpg");
+            fallbackPhotoUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photoFile);
+            fallbackCameraLauncher.launch(fallbackPhotoUri);
+        } catch (Exception e) {
+            showHint("相機無法使用，請改用導入圖片：" + e.getMessage());
         }
     }
 
@@ -474,8 +503,10 @@ public class CameraCaptureActivity extends AppCompatActivity {
     }
 
     private void showHint(String text) {
-        txtCaptureHint.setVisibility(View.VISIBLE);
-        txtCaptureHint.setText(text);
-        Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+        runOnUiThread(() -> {
+            txtCaptureHint.setVisibility(View.VISIBLE);
+            txtCaptureHint.setText(text);
+            Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+        });
     }
 }
