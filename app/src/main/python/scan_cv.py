@@ -356,7 +356,7 @@ def watermark_preview(image_bytes):
     )
     cv2.putText(
         output,
-        "Final project demo",
+        "Smart scan document",
         (24, h - int(overlay_h * 0.16)),
         cv2.FONT_HERSHEY_SIMPLEX,
         max(0.55, w / 1400.0),

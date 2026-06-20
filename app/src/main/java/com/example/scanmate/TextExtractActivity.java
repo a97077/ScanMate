@@ -52,24 +52,42 @@ public class TextExtractActivity extends AppCompatActivity {
 
         findViewById(R.id.btnTextBack).setOnClickListener(v -> finish());
         btnSelectTextImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+
+        if (ScanDraftStore.hasDraft() && ScanDraftStore.getCurrentBitmap() != null) {
+            btnSelectTextImage.setText("重新選擇圖片");
+            processBitmap(ScanDraftStore.getCurrentBitmap());
+        }
     }
 
     private void processImage(Uri uri) {
         try {
-            byte[] imageBytes = readBytesFromUri(uri);
-            PyObject module = py.getModule("scan_cv");
-
-            PyObject previewResult = module.callAttr("text_extract_preview", imageBytes);
-            byte[] outPng = previewResult.toJava(byte[].class);
-            Bitmap preview = BitmapFactory.decodeByteArray(outPng, 0, outPng.length);
-            imgTextPreview.setImageBitmap(preview);
-
-            PyObject reportResult = module.callAttr("text_region_report", imageBytes);
-            txtTextReport.setText(reportResult.toJava(String.class));
+            processImageBytes(readBytesFromUri(uri));
         } catch (Exception e) {
             txtTextReport.setText("文字提取預處理失敗：\n" + e.getMessage());
             Toast.makeText(this, "處理失敗", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void processBitmap(Bitmap bitmap) {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            processImageBytes(outputStream.toByteArray());
+        } catch (Exception e) {
+            txtTextReport.setText("文字提取預處理失敗：\n" + e.getMessage());
+        }
+    }
+
+    private void processImageBytes(byte[] imageBytes) {
+        PyObject module = py.getModule("scan_cv");
+
+        PyObject previewResult = module.callAttr("text_extract_preview", imageBytes);
+        byte[] outPng = previewResult.toJava(byte[].class);
+        Bitmap preview = BitmapFactory.decodeByteArray(outPng, 0, outPng.length);
+        imgTextPreview.setImageBitmap(preview);
+
+        PyObject reportResult = module.callAttr("text_region_report", imageBytes);
+        txtTextReport.setText(reportResult.toJava(String.class));
     }
 
     private byte[] readBytesFromUri(Uri uri) throws Exception {

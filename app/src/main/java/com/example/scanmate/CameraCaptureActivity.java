@@ -25,6 +25,7 @@ import android.os.HandlerThread;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
 import android.util.Size;
+import android.util.SparseIntArray;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
@@ -48,6 +49,15 @@ import java.util.Locale;
 
 public class CameraCaptureActivity extends AppCompatActivity {
 
+    private static final SparseIntArray DEVICE_ORIENTATIONS = new SparseIntArray();
+
+    static {
+        DEVICE_ORIENTATIONS.append(Surface.ROTATION_0, 90);
+        DEVICE_ORIENTATIONS.append(Surface.ROTATION_90, 0);
+        DEVICE_ORIENTATIONS.append(Surface.ROTATION_180, 270);
+        DEVICE_ORIENTATIONS.append(Surface.ROTATION_270, 180);
+    }
+
     private TextureView textureCameraPreview;
     private TextView txtCaptureHint;
     private TextView btnFlash;
@@ -64,6 +74,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private String cameraId;
     private String documentTitle;
     private String captureMode;
+    private int sensorOrientation = 90;
     private boolean previewReady = false;
     private boolean cameraUnavailable = false;
     private boolean flashOff = true;
@@ -243,6 +254,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
             }
 
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+            Integer orientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
+            sensorOrientation = orientation == null ? 90 : orientation;
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (map == null) {
                 cameraUnavailable = true;
@@ -350,13 +363,19 @@ public class CameraCaptureActivity extends AppCompatActivity {
             if (!flashOff) {
                 captureBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_AUTO_FLASH);
             }
-            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, 90);
+            captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, getJpegOrientation());
             cameraSession.capture(captureBuilder.build(), null, cameraHandler);
         } catch (Exception e) {
             cameraUnavailable = true;
             showHint("內建拍攝失敗，改用系統相機");
             launchFallbackCamera();
         }
+    }
+
+    private int getJpegOrientation() {
+        int rotation = getWindowManager().getDefaultDisplay().getRotation();
+        int deviceOrientation = DEVICE_ORIENTATIONS.get(rotation, 90);
+        return (deviceOrientation + sensorOrientation + 270) % 360;
     }
 
     private void launchFallbackCamera() {

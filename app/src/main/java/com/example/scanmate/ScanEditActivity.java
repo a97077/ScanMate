@@ -2,8 +2,10 @@ package com.example.scanmate;
 
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -14,8 +16,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class ScanEditActivity extends AppCompatActivity {
 
@@ -66,9 +71,9 @@ public class ScanEditActivity extends AppCompatActivity {
         btnBack.setOnClickListener(v -> finish());
         btnConfirm.setOnClickListener(v -> confirmEdit());
         btnRotateLeft.setOnClickListener(v -> rotateCurrentBitmap());
-        btnAnnotate.setOnClickListener(v -> Toast.makeText(this, "標注功能將在下一階段補上", Toast.LENGTH_SHORT).show());
+        btnAnnotate.setOnClickListener(v -> addAnnotation());
         btnExtractText.setOnClickListener(v -> startActivity(new Intent(this, TextExtractActivity.class)));
-        btnSignature.setOnClickListener(v -> openToolFeature("signature", "電子簽名"));
+        btnSignature.setOnClickListener(v -> addSignatureStamp());
 
         filterOriginal.setOnClickListener(v -> applyFilter("original", filterOriginal));
         filterBright.setOnClickListener(v -> applyFilter("bright", filterBright));
@@ -168,11 +173,87 @@ public class ScanEditActivity extends AppCompatActivity {
         startActivity(new Intent(this, ScanPreviewActivity.class));
     }
 
-    private void openToolFeature(String type, String title) {
-        Intent intent = new Intent(this, ToolFeatureActivity.class);
-        intent.putExtra(ToolFeatureActivity.EXTRA_TYPE, type);
-        intent.putExtra(ToolFeatureActivity.EXTRA_TITLE, title);
-        startActivity(intent);
+    private void addAnnotation() {
+        if (currentBitmap == null) {
+            return;
+        }
+
+        Bitmap annotated = currentBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvas = new Canvas(annotated);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float scale = Math.max(1f, annotated.getWidth() / 900f);
+        float left = 32f * scale;
+        float top = 32f * scale;
+        float right = Math.min(annotated.getWidth() - 32f * scale, left + 430f * scale);
+        float bottom = top + 118f * scale;
+
+        paint.setColor(Color.argb(215, 30, 32, 38));
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRoundRect(left, top, right, bottom, 18f * scale, 18f * scale, paint);
+
+        paint.setColor(Color.rgb(88, 224, 204));
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(4f * scale);
+        canvas.drawRoundRect(left, top, right, bottom, 18f * scale, 18f * scale, paint);
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTypeface(Typeface.DEFAULT_BOLD);
+        paint.setTextSize(34f * scale);
+        canvas.drawText("ScanMate 標注", left + 24f * scale, top + 48f * scale, paint);
+
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(24f * scale);
+        paint.setColor(Color.WHITE);
+        String now = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(new Date());
+        canvas.drawText(now, left + 24f * scale, top + 88f * scale, paint);
+
+        updateEditedBitmap(annotated);
+        Toast.makeText(this, "已加入標注", Toast.LENGTH_SHORT).show();
+    }
+
+    private void addSignatureStamp() {
+        if (currentBitmap == null) {
+            return;
+        }
+
+        Bitmap signed = currentBitmap.copy(Bitmap.Config.ARGB_8888, true);
+        Canvas canvas = new Canvas(signed);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float scale = Math.max(1f, signed.getWidth() / 900f);
+        float width = 360f * scale;
+        float height = 128f * scale;
+        float left = signed.getWidth() - width - 36f * scale;
+        float top = signed.getHeight() - height - 36f * scale;
+        float right = signed.getWidth() - 36f * scale;
+        float bottom = signed.getHeight() - 36f * scale;
+
+        paint.setColor(Color.argb(235, 255, 255, 255));
+        paint.setStyle(Paint.Style.FILL);
+        canvas.drawRoundRect(left, top, right, bottom, 20f * scale, 20f * scale, paint);
+
+        paint.setColor(Color.rgb(36, 185, 160));
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(5f * scale);
+        canvas.drawRoundRect(left, top, right, bottom, 20f * scale, 20f * scale, paint);
+
+        paint.setStyle(Paint.Style.FILL);
+        paint.setTypeface(Typeface.create(Typeface.SERIF, Typeface.BOLD_ITALIC));
+        paint.setTextSize(40f * scale);
+        canvas.drawText("ScanMate", left + 36f * scale, top + 54f * scale, paint);
+
+        paint.setTypeface(Typeface.DEFAULT);
+        paint.setTextSize(24f * scale);
+        canvas.drawText("電子簽名", left + 36f * scale, top + 94f * scale, paint);
+
+        updateEditedBitmap(signed);
+        Toast.makeText(this, "已加入電子簽名", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateEditedBitmap(Bitmap bitmap) {
+        currentBitmap = bitmap;
+        originalBitmap = bitmap;
+        imgEditPreview.setImageBitmap(bitmap);
+        ScanDraftStore.setCurrentBitmap(bitmap);
     }
 
     private void markSelected(TextView selected) {

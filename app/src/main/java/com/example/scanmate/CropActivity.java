@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -26,6 +28,7 @@ import java.util.Locale;
 public class CropActivity extends AppCompatActivity {
 
     private ImageView imgCropPreview;
+    private CropOverlayView cropOverlay;
     private TextView txtCropTitle;
     private Bitmap workingBitmap;
     private Uri sourceUri;
@@ -39,6 +42,7 @@ public class CropActivity extends AppCompatActivity {
         setContentView(R.layout.activity_crop);
 
         imgCropPreview = findViewById(R.id.imgCropPreview);
+        cropOverlay = findViewById(R.id.cropOverlay);
         txtCropTitle = findViewById(R.id.txtCropTitle);
 
         View btnBack = findViewById(R.id.btnCropBack);
@@ -70,12 +74,14 @@ public class CropActivity extends AppCompatActivity {
         }
 
         imgCropPreview.setImageBitmap(workingBitmap);
+        refreshCropOverlayBounds();
 
         btnBack.setOnClickListener(v -> finish());
         btnRotateLeft.setOnClickListener(v -> rotateWorkingBitmap(-90));
         btnRotateRight.setOnClickListener(v -> rotateWorkingBitmap(90));
         btnCropAll.setOnClickListener(v -> {
             autoCorrectDocument = false;
+            cropOverlay.resetToFullImage();
             Toast.makeText(this, "已套用整頁範圍，下一步將保留完整圖片", Toast.LENGTH_SHORT).show();
         });
         btnCropNext.setOnClickListener(v -> goToEditScreen());
@@ -122,6 +128,7 @@ public class CropActivity extends AppCompatActivity {
                 true
         );
         imgCropPreview.setImageBitmap(workingBitmap);
+        refreshCropOverlayBounds();
     }
 
     private void goToEditScreen() {
@@ -129,14 +136,21 @@ public class CropActivity extends AppCompatActivity {
             return;
         }
 
+        Bitmap selectedBitmap = cropWorkingBitmap();
+        if (selectedBitmap == null) {
+            selectedBitmap = workingBitmap;
+        }
+
         isProcessing = true;
         txtCropTitle.setText("文件校正中");
-        Toast.makeText(this, autoCorrectDocument ? "正在進行文件校正" : "正在套用整頁圖片", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, autoCorrectDocument ? "正在進行文件校正" : "正在套用裁切範圍", Toast.LENGTH_SHORT).show();
+
+        Bitmap inputBitmap = selectedBitmap;
 
         new Thread(() -> {
-            Bitmap outputBitmap = workingBitmap;
+            Bitmap outputBitmap = inputBitmap;
             if (autoCorrectDocument) {
-                Bitmap corrected = runOpenCvDocumentCorrection(workingBitmap);
+                Bitmap corrected = runOpenCvDocumentCorrection(inputBitmap);
                 if (corrected != null) {
                     outputBitmap = corrected;
                 }
@@ -174,6 +188,58 @@ public class CropActivity extends AppCompatActivity {
                     Toast.makeText(this, "自動校正失敗，已保留原圖", Toast.LENGTH_SHORT).show()
             );
             return null;
+        }
+    }
+
+    private void refreshCropOverlayBounds() {
+        imgCropPreview.post(() -> {
+            if (workingBitmap == null || cropOverlay == null) {
+                return;
+            }
+            RectF displayedBounds = calculateDisplayedImageBounds();
+            cropOverlay.setImageBounds(displayedBounds);
+        });
+    }
+
+    private RectF calculateDisplayedImageBounds() {
+        int viewWidth = imgCropPreview.getWidth();
+        int viewHeight = imgCropPreview.getHeight();
+        if (viewWidth <= 0 || viewHeight <= 0 || workingBitmap == null) {
+            return new RectF();
+        }
+
+        float bitmapWidth = workingBitmap.getWidth();
+        float bitmapHeight = workingBitmap.getHeight();
+        float scale = Math.min(viewWidth / bitmapWidth, viewHeight / bitmapHeight);
+        float displayedWidth = bitmapWidth * scale;
+        float displayedHeight = bitmapHeight * scale;
+        float left = (viewWidth - displayedWidth) / 2f;
+        float top = (viewHeight - displayedHeight) / 2f;
+        return new RectF(left, top, left + displayedWidth, top + displayedHeight);
+    }
+
+    private Bitmap cropWorkingBitmap() {
+        if (workingBitmap == null || cropOverlay == null) {
+            return workingBitmap;
+        }
+
+        Rect cropRect = cropOverlay.getCropRectInBitmap(workingBitmap.getWidth(), workingBitmap.getHeight());
+        int width = cropRect.width();
+        int height = cropRect.height();
+        if (width <= 0 || height <= 0) {
+            return workingBitmap;
+        }
+
+        boolean fullWidth = cropRect.left == 0 && cropRect.right == workingBitmap.getWidth();
+        boolean fullHeight = cropRect.top == 0 && cropRect.bottom == workingBitmap.getHeight();
+        if (fullWidth && fullHeight) {
+            return workingBitmap;
+        }
+
+        try {
+            return Bitmap.createBitmap(workingBitmap, cropRect.left, cropRect.top, width, height);
+        } catch (Exception ignored) {
+            return workingBitmap;
         }
     }
 }
