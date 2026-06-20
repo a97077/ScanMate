@@ -165,7 +165,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
             case "ppt":
                 return "匯出 PPT 簡報大綱，可貼到簡報軟體。";
             default:
-                return "此工具已建立可操作 demo。";
+                return "此工具已建立基礎處理流程，可接續擴充正式服務。";
         }
     }
 

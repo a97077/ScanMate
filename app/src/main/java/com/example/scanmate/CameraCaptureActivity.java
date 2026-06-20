@@ -1,6 +1,7 @@
 package com.example.scanmate;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
@@ -63,6 +64,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private String cameraId;
     private String documentTitle;
     private String captureMode;
+    private boolean previewReady = false;
+    private boolean cameraUnavailable = false;
     private boolean flashOff = true;
     private boolean hdEnabled = true;
 
@@ -123,6 +126,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         @Override
         public void onOpened(@NonNull CameraDevice camera) {
             cameraDevice = camera;
+            cameraUnavailable = false;
             createPreviewSession();
         }
 
@@ -133,6 +137,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
+            cameraUnavailable = true;
             closeCamera();
             showHint("相機啟動失敗，請改用導入圖片");
         }
@@ -163,7 +168,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         View btnImportDocument = findViewById(R.id.btnCaptureImportDocument);
 
         btnClose.setOnClickListener(v -> finish());
-        btnMenu.setOnClickListener(v -> Toast.makeText(this, "更多拍攝設定將在下一版加入", Toast.LENGTH_SHORT).show());
+        btnMenu.setOnClickListener(v -> showCaptureOptions());
         btnFlash.setOnClickListener(v -> toggleFlashState());
         btnHd.setOnClickListener(v -> toggleHdState());
         btnShutter.setOnClickListener(v -> captureStillImage());
@@ -227,9 +232,12 @@ public class CameraCaptureActivity extends AppCompatActivity {
         }
 
         try {
+            cameraUnavailable = false;
+            previewReady = false;
             CameraManager manager = (CameraManager) getSystemService(CAMERA_SERVICE);
             cameraId = findBackCameraId(manager);
             if (cameraId == null) {
+                cameraUnavailable = true;
                 showHint("找不到可用相機，請改用導入圖片");
                 return;
             }
@@ -237,6 +245,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (map == null) {
+                cameraUnavailable = true;
                 showHint("相機規格讀取失敗");
                 return;
             }
@@ -304,6 +313,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
                             cameraSession = session;
                             try {
                                 cameraSession.setRepeatingRequest(previewRequestBuilder.build(), null, cameraHandler);
+                                previewReady = true;
                                 runOnUiThread(() -> txtCaptureHint.setVisibility(View.GONE));
                             } catch (Exception e) {
                                 showHint("相機預覽失敗");
@@ -323,8 +333,13 @@ public class CameraCaptureActivity extends AppCompatActivity {
     }
 
     private void captureStillImage() {
-        if (cameraDevice == null || cameraSession == null || imageReader == null) {
+        if (cameraUnavailable) {
             launchFallbackCamera();
+            return;
+        }
+
+        if (!previewReady || cameraDevice == null || cameraSession == null || imageReader == null) {
+            showHint("相機初始化中，請稍候再拍");
             return;
         }
 
@@ -338,6 +353,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, 90);
             cameraSession.capture(captureBuilder.build(), null, cameraHandler);
         } catch (Exception e) {
+            cameraUnavailable = true;
             showHint("內建拍攝失敗，改用系統相機");
             launchFallbackCamera();
         }
@@ -379,6 +395,22 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 image.close();
             }
         }
+    }
+
+    private void showCaptureOptions() {
+        String[] options = {"系統相機備援", "導入圖片", "導入文檔"};
+        new AlertDialog.Builder(this)
+                .setTitle("拍攝選項")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        launchFallbackCamera();
+                    } else if (which == 1) {
+                        pickImageLauncher.launch("image/*");
+                    } else {
+                        importDocumentLauncher.launch(new String[]{"application/pdf"});
+                    }
+                })
+                .show();
     }
 
     private void openCropScreen(Uri imageUri) {
@@ -486,6 +518,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 cameraSession.close();
                 cameraSession = null;
             }
+            previewReady = false;
             if (cameraDevice != null) {
                 cameraDevice.close();
                 cameraDevice = null;

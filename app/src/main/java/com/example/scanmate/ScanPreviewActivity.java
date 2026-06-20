@@ -1,6 +1,7 @@
 package com.example.scanmate;
 
 import android.content.ActivityNotFoundException;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -8,8 +9,10 @@ import android.graphics.Color;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.InputType;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,9 +61,9 @@ public class ScanPreviewActivity extends AppCompatActivity {
         View btnSignature = findViewById(R.id.btnPreviewSignature);
 
         btnBack.setOnClickListener(v -> finish());
-        btnTitleEdit.setOnClickListener(v -> Toast.makeText(this, "檔名編輯將在下一階段補上", Toast.LENGTH_SHORT).show());
+        btnTitleEdit.setOnClickListener(v -> showRenameDialog());
         btnGrid.setOnClickListener(v -> startActivity(new Intent(this, DocumentsActivity.class)));
-        btnMore.setOnClickListener(v -> Toast.makeText(this, "更多文件操作將在下一階段補上", Toast.LENGTH_SHORT).show());
+        btnMore.setOnClickListener(v -> showMoreActions());
         btnContinueAdd.setOnClickListener(v -> openCaptureForAppend());
         btnAdd.setOnClickListener(v -> openCaptureForAppend());
         btnEdit.setOnClickListener(v -> editLatestPage());
@@ -119,6 +122,48 @@ public class ScanPreviewActivity extends AppCompatActivity {
         } catch (ActivityNotFoundException e) {
             Toast.makeText(this, "找不到可分享 PDF 的應用程式", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showRenameDialog() {
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setText(ScanDraftStore.getDocumentTitle());
+        input.setSelectAllOnFocus(true);
+
+        new AlertDialog.Builder(this)
+                .setTitle("重新命名")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("確定", (dialog, which) -> {
+                    String title = input.getText() == null ? "" : input.getText().toString().trim();
+                    if (title.isEmpty()) {
+                        Toast.makeText(this, "檔名不可空白", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    ScanDraftStore.setDocumentTitle(title);
+                    renderPreview();
+                })
+                .show();
+    }
+
+    private void showMoreActions() {
+        String[] actions = {"儲存 PDF", "分享 PDF", "全部文檔"};
+        new AlertDialog.Builder(this)
+                .setTitle("文件操作")
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        Uri pdfUri = createLocalPdf();
+                        if (pdfUri != null) {
+                            Toast.makeText(this, "已儲存到最近文件", Toast.LENGTH_SHORT).show();
+                        }
+                    } else if (which == 1) {
+                        shareCurrentPdf();
+                    } else {
+                        startActivity(new Intent(this, DocumentsActivity.class));
+                    }
+                })
+                .show();
     }
 
     private Uri createLocalPdf() {

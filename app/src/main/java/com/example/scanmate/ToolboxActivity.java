@@ -28,7 +28,7 @@ public class ToolboxActivity extends AppCompatActivity {
         findViewById(R.id.toolboxNavDocuments).setOnClickListener(v ->
                 startActivity(new Intent(this, DocumentsActivity.class))
         );
-        findViewById(R.id.toolboxNavToolbox).setOnClickListener(v -> showPlaceholder("工具箱"));
+        findViewById(R.id.toolboxNavToolbox).setOnClickListener(v -> showToast("目前位於工具箱"));
         findViewById(R.id.toolboxNavMe).setOnClickListener(v ->
                 startActivity(new Intent(this, ProfileActivity.class))
         );
@@ -183,7 +183,7 @@ public class ToolboxActivity extends AppCompatActivity {
         startActivity(intent);
     }
 
-    private void showPlaceholder(String message) {
+    private void showToast(String message) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 

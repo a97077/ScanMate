@@ -13,6 +13,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.chaquo.python.PyObject;
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
+
+import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -25,6 +30,8 @@ public class CropActivity extends AppCompatActivity {
     private Bitmap workingBitmap;
     private Uri sourceUri;
     private String documentTitle;
+    private boolean autoCorrectDocument = true;
+    private boolean isProcessing = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +74,10 @@ public class CropActivity extends AppCompatActivity {
         btnBack.setOnClickListener(v -> finish());
         btnRotateLeft.setOnClickListener(v -> rotateWorkingBitmap(-90));
         btnRotateRight.setOnClickListener(v -> rotateWorkingBitmap(90));
-        btnCropAll.setOnClickListener(v -> Toast.makeText(this, "已套用整頁範圍", Toast.LENGTH_SHORT).show());
+        btnCropAll.setOnClickListener(v -> {
+            autoCorrectDocument = false;
+            Toast.makeText(this, "已套用整頁範圍，下一步將保留完整圖片", Toast.LENGTH_SHORT).show();
+        });
         btnCropNext.setOnClickListener(v -> goToEditScreen());
     }
 
@@ -115,8 +125,55 @@ public class CropActivity extends AppCompatActivity {
     }
 
     private void goToEditScreen() {
-        ScanDraftStore.start(sourceUri, workingBitmap, documentTitle);
-        Intent intent = new Intent(this, ScanEditActivity.class);
-        startActivity(intent);
+        if (isProcessing || workingBitmap == null) {
+            return;
+        }
+
+        isProcessing = true;
+        txtCropTitle.setText("文件校正中");
+        Toast.makeText(this, autoCorrectDocument ? "正在進行文件校正" : "正在套用整頁圖片", Toast.LENGTH_SHORT).show();
+
+        new Thread(() -> {
+            Bitmap outputBitmap = workingBitmap;
+            if (autoCorrectDocument) {
+                Bitmap corrected = runOpenCvDocumentCorrection(workingBitmap);
+                if (corrected != null) {
+                    outputBitmap = corrected;
+                }
+            }
+
+            Bitmap finalBitmap = outputBitmap;
+            runOnUiThread(() -> {
+                isProcessing = false;
+                ScanDraftStore.start(sourceUri, finalBitmap, documentTitle);
+                Intent intent = new Intent(this, ScanEditActivity.class);
+                startActivity(intent);
+            });
+        }).start();
+    }
+
+    private Bitmap runOpenCvDocumentCorrection(Bitmap bitmap) {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+
+            if (!Python.isStarted()) {
+                Python.start(new AndroidPlatform(this));
+            }
+
+            PyObject module = Python.getInstance().getModule("scan_cv");
+            PyObject result = module.callAttr("canny_process", outputStream.toByteArray());
+            byte[] pngBytes = result.toJava(byte[].class);
+            Bitmap corrected = BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
+            if (corrected == null) {
+                throw new RuntimeException("OpenCV output decode failed");
+            }
+            return corrected;
+        } catch (Exception e) {
+            runOnUiThread(() ->
+                    Toast.makeText(this, "自動校正失敗，已保留原圖", Toast.LENGTH_SHORT).show()
+            );
+            return null;
+        }
     }
 }

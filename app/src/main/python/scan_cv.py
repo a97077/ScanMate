@@ -92,9 +92,19 @@ def canny_process(image_bytes):
             screen_cnt = approx
             break
 
-    # 如果找不到文件邊框，先回傳 Canny 圖，方便除錯
+    # 找不到文件邊框時仍回傳可閱讀的掃描版，不把除錯用 Canny 邊緣圖交給使用者。
     if screen_cnt is None:
-        return _encode_png(edged)
+        original_gray = cv2.cvtColor(original, cv2.COLOR_BGR2GRAY)
+        original_gray = cv2.GaussianBlur(original_gray, (3, 3), 0)
+        fallback = cv2.adaptiveThreshold(
+            original_gray,
+            255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY,
+            21,
+            9
+        )
+        return _encode_png(fallback)
 
     pts = screen_cnt.reshape(4, 2) * ratio
     warped = four_point_transform(original, pts)

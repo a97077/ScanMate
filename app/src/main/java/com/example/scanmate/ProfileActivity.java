@@ -44,11 +44,12 @@ public class ProfileActivity extends AppCompatActivity {
 
     private void renderStats() {
         txtProfileStats.setText(
-                "ScanMate Demo Ready\n\n" +
+                "ScanMate 完整版\n\n" +
                         "最近文件：" + DocumentStore.size() + " 份\n" +
-                        "掃描能力：多張選圖、OpenCV 文件校正、Gamma、CLAHE、曝光診斷\n" +
-                        "PDF 能力：多頁輸出、開啟、分享、導入、最近文件保存\n" +
-                        "資料保存：SharedPreferences metadata"
+                        "掃描能力：拍攝、導入圖片、文件校正、旋轉、濾鏡增強\n" +
+                        "PDF 能力：文件頁面管理、PDF 建立、開啟、分享、導入、最近文件保存\n" +
+                        "工具能力：文字提取前處理、證件照、公式區塊、拍照翻譯、PDF 轉圖片、長圖片、簽名批註\n" +
+                        "資料保存：最近文件 metadata 本機保存"
         );
     }
 
