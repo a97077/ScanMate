@@ -9,6 +9,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
+import android.graphics.Paint;
 import android.graphics.SurfaceTexture;
 import android.graphics.Typeface;
 import android.graphics.pdf.PdfRenderer;
@@ -109,7 +110,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private final ActivityResultLauncher<Uri> fallbackCameraLauncher =
             registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
                 if (Boolean.TRUE.equals(success) && fallbackPhotoUri != null) {
-                    openCropScreen(fallbackPhotoUri);
+                    openCropScreen(fallbackPhotoUri, true);
                 } else {
                     showHint("尚未拍攝，請重新按下快門或導入圖片");
                 }
@@ -118,7 +119,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) {
-                    openCropScreen(uri);
+                    openCropScreen(uri, false);
                 }
             });
 
@@ -243,6 +244,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
             showHint("PPT 掃描模式：請對準投影片或螢幕邊界");
         } else if ("whiteboard".equals(captureMode)) {
             showHint("白板掃描模式：請避開反光並包含完整白板");
+        } else {
+            highlightMode(btnModeSingle);
         }
     }
 
@@ -452,7 +455,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 if (continuousMode) {
                     processContinuousCapture(imageUri);
                 } else {
-                    openCropScreen(imageUri);
+                    openCropScreen(imageUri, true);
                 }
             });
         } catch (Exception e) {
@@ -480,11 +483,12 @@ public class CameraCaptureActivity extends AppCompatActivity {
                 .show();
     }
 
-    private void openCropScreen(Uri imageUri) {
+    private void openCropScreen(Uri imageUri, boolean forcePortrait) {
         Intent intent = new Intent(this, CropActivity.class);
         intent.putExtra("image_uri", imageUri.toString());
         intent.putExtra("document_title", documentTitle);
         intent.putExtra("capture_mode", captureMode);
+        intent.putExtra("force_portrait", forcePortrait);
         startActivity(intent);
     }
 
@@ -538,6 +542,11 @@ public class CameraCaptureActivity extends AppCompatActivity {
             boolean active = button == activeButton;
             button.setTextColor(active ? Color.parseColor("#40D6C1") : Color.parseColor("#C4C7CC"));
             button.setTypeface(Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
+            if (active) {
+                button.setPaintFlags(button.getPaintFlags() | Paint.UNDERLINE_TEXT_FLAG);
+            } else {
+                button.setPaintFlags(button.getPaintFlags() & ~Paint.UNDERLINE_TEXT_FLAG);
+            }
         }
     }
 
@@ -552,7 +561,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void processContinuousCapture(Uri imageUri) {
         showHint("正在加入掃描頁面");
         new Thread(() -> {
-            Bitmap bitmap = decodeBitmap(imageUri);
+            Bitmap bitmap = decodeBitmap(imageUri, true);
             Bitmap scanned = bitmap == null ? null : runOpenCvAutoScan(bitmap);
             if (scanned == null) {
                 scanned = bitmap;
@@ -577,9 +586,15 @@ public class CameraCaptureActivity extends AppCompatActivity {
         }).start();
     }
 
-    private Bitmap decodeBitmap(Uri uri) {
+    private Bitmap decodeBitmap(Uri uri, boolean forcePortrait) {
         try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
-            return BitmapFactory.decodeStream(inputStream);
+            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+            return BitmapOrientationHelper.applyExifAndPortrait(
+                    getContentResolver(),
+                    uri,
+                    bitmap,
+                    forcePortrait
+            );
         } catch (Exception ignored) {
             return null;
         }

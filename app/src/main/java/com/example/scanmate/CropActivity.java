@@ -72,7 +72,8 @@ public class CropActivity extends AppCompatActivity {
         }
 
         sourceUri = Uri.parse(uriString);
-        workingBitmap = decodeBitmap(sourceUri);
+        boolean forcePortrait = getIntent().getBooleanExtra("force_portrait", false);
+        workingBitmap = decodeBitmap(sourceUri, forcePortrait);
         if (workingBitmap == null) {
             Toast.makeText(this, "圖片讀取失敗", Toast.LENGTH_SHORT).show();
             finish();
@@ -94,7 +95,7 @@ public class CropActivity extends AppCompatActivity {
         btnCropNext.setOnClickListener(v -> goToEditScreen());
     }
 
-    private Bitmap decodeBitmap(Uri uri) {
+    private Bitmap decodeBitmap(Uri uri, boolean forcePortrait) {
         try {
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
@@ -112,7 +113,13 @@ public class CropActivity extends AppCompatActivity {
             options.inSampleSize = sampleSize;
             options.inPreferredConfig = Bitmap.Config.ARGB_8888;
             try (InputStream imageStream = getContentResolver().openInputStream(uri)) {
-                return BitmapFactory.decodeStream(imageStream, null, options);
+                Bitmap bitmap = BitmapFactory.decodeStream(imageStream, null, options);
+                return BitmapOrientationHelper.applyExifAndPortrait(
+                        getContentResolver(),
+                        uri,
+                        bitmap,
+                        forcePortrait
+                );
             }
         } catch (Exception ignored) {
             return null;

@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Typeface;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.View;
@@ -69,6 +70,7 @@ public class ScanEditActivity extends AppCompatActivity {
         filterButtons.add(filterSharp);
         filterButtons.add(filterHd);
         filterButtons.add(filterShadow);
+        setupFilterThumbnails(filterOriginal, filterBright, filterSharp, filterHd, filterShadow);
 
         btnBack.setOnClickListener(v -> finish());
         btnConfirm.setOnClickListener(v -> confirmEdit());
@@ -93,20 +95,65 @@ public class ScanEditActivity extends AppCompatActivity {
             return;
         }
 
-        if ("original".equals(type)) {
-            currentBitmap = base;
-        } else if ("bright".equals(type)) {
-            currentBitmap = transformPixels(base, 1.05f, 28, false, false);
-        } else if ("sharp".equals(type)) {
-            currentBitmap = transformPixels(base, 1.28f, 8, false, false);
-        } else if ("hd".equals(type)) {
-            currentBitmap = transformPixels(base, 1.35f, 12, true, false);
-        } else if ("shadow".equals(type)) {
-            currentBitmap = transformPixels(base, 1.12f, 18, false, true);
-        }
+        currentBitmap = createFilterBitmap(type, base);
 
         imgEditPreview.setImageBitmap(currentBitmap);
         markSelected(selected);
+    }
+
+    private Bitmap createFilterBitmap(String type, Bitmap base) {
+        if ("bright".equals(type)) {
+            return transformPixels(base, 1.05f, 28, false, false);
+        } else if ("sharp".equals(type)) {
+            return transformPixels(base, 1.28f, 8, false, false);
+        } else if ("hd".equals(type)) {
+            return transformPixels(base, 1.35f, 12, true, false);
+        } else if ("shadow".equals(type)) {
+            return transformPixels(base, 1.12f, 18, false, true);
+        }
+        return base;
+    }
+
+    private void setupFilterThumbnails(
+            TextView filterOriginal,
+            TextView filterBright,
+            TextView filterSharp,
+            TextView filterHd,
+            TextView filterShadow
+    ) {
+        if (originalBitmap == null) {
+            return;
+        }
+
+        Bitmap thumbBase = createCenterCropThumbnail(originalBitmap, dp(86), dp(42));
+        bindFilterThumbnail(filterOriginal, "原圖", createFilterBitmap("original", thumbBase));
+        bindFilterThumbnail(filterBright, "增亮", createFilterBitmap("bright", thumbBase));
+        bindFilterThumbnail(filterSharp, "增強銳化", createFilterBitmap("sharp", thumbBase));
+        bindFilterThumbnail(filterHd, "智慧高畫質", createFilterBitmap("hd", thumbBase));
+        bindFilterThumbnail(filterShadow, "去陰影", createFilterBitmap("shadow", thumbBase));
+    }
+
+    private void bindFilterThumbnail(TextView view, String label, Bitmap thumbnail) {
+        BitmapDrawable drawable = new BitmapDrawable(getResources(), thumbnail);
+        drawable.setBounds(0, 0, dp(86), dp(42));
+        view.setText(label);
+        view.setGravity(android.view.Gravity.CENTER);
+        view.setCompoundDrawablePadding(dp(4));
+        view.setCompoundDrawables(null, drawable, null, null);
+    }
+
+    private Bitmap createCenterCropThumbnail(Bitmap source, int width, int height) {
+        if (source == null || source.getWidth() <= 0 || source.getHeight() <= 0) {
+            return Bitmap.createBitmap(Math.max(1, width), Math.max(1, height), Bitmap.Config.ARGB_8888);
+        }
+
+        float scale = Math.max((float) width / source.getWidth(), (float) height / source.getHeight());
+        int scaledWidth = Math.max(1, Math.round(source.getWidth() * scale));
+        int scaledHeight = Math.max(1, Math.round(source.getHeight() * scale));
+        Bitmap scaled = Bitmap.createScaledBitmap(source, scaledWidth, scaledHeight, true);
+        int left = Math.max(0, (scaledWidth - width) / 2);
+        int top = Math.max(0, (scaledHeight - height) / 2);
+        return Bitmap.createBitmap(scaled, left, top, Math.min(width, scaled.getWidth() - left), Math.min(height, scaled.getHeight() - top));
     }
 
     private Bitmap transformPixels(Bitmap source, float contrast, int brightness, boolean grayscale, boolean liftShadow) {
