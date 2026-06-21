@@ -4,6 +4,10 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.PointF;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.util.AttributeSet;
@@ -14,25 +18,25 @@ import androidx.annotation.Nullable;
 
 public class CropOverlayView extends View {
 
-    private static final int HANDLE_NONE = 0;
-    private static final int HANDLE_MOVE = 1;
-    private static final int HANDLE_LEFT = 1 << 1;
-    private static final int HANDLE_TOP = 1 << 2;
-    private static final int HANDLE_RIGHT = 1 << 3;
-    private static final int HANDLE_BOTTOM = 1 << 4;
+    private static final int MOVE_NONE = -2;
+    private static final int MOVE_POLYGON = -1;
+    private static final int POINT_COUNT = 4;
 
     private final Paint shadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint clearPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint framePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint handleFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint handleStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path cropPath = new Path();
     private final RectF imageBounds = new RectF();
-    private final RectF cropRect = new RectF();
-    private final RectF handleRect = new RectF();
+    private final RectF polygonBounds = new RectF();
+    private final PointF[] points = new PointF[POINT_COUNT];
 
+    private int bitmapWidth = 1;
+    private int bitmapHeight = 1;
+    private int activePoint = MOVE_NONE;
     private float handleRadius;
-    private float edgeTouchSize;
-    private float minCropSize;
-    private int activeHandle = HANDLE_NONE;
+    private float touchRadius;
     private float lastTouchX;
     private float lastTouchY;
     private boolean boundsReady = false;
@@ -54,13 +58,19 @@ public class CropOverlayView extends View {
 
     private void init() {
         setWillNotDraw(false);
+        setLayerType(LAYER_TYPE_SOFTWARE, null);
+
+        for (int i = 0; i < POINT_COUNT; i++) {
+            points[i] = new PointF();
+        }
 
         handleRadius = dp(13);
-        edgeTouchSize = dp(30);
-        minCropSize = dp(96);
+        touchRadius = dp(34);
 
-        shadePaint.setColor(Color.argb(130, 0, 0, 0));
+        shadePaint.setColor(Color.argb(150, 0, 0, 0));
         shadePaint.setStyle(Paint.Style.FILL);
+
+        clearPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
 
         framePaint.setColor(Color.rgb(93, 232, 205));
         framePaint.setStyle(Paint.Style.STROKE);
@@ -74,6 +84,11 @@ public class CropOverlayView extends View {
         handleStrokePaint.setStrokeWidth(dp(2));
     }
 
+    public void setBitmapSize(int width, int height) {
+        bitmapWidth = Math.max(1, width);
+        bitmapHeight = Math.max(1, height);
+    }
+
     public void setImageBounds(RectF bounds) {
         if (bounds == null || bounds.width() <= 1 || bounds.height() <= 1) {
             boundsReady = false;
@@ -81,13 +96,16 @@ public class CropOverlayView extends View {
             return;
         }
 
+        boolean hadBounds = boundsReady;
+        RectF oldBounds = new RectF(imageBounds);
         imageBounds.set(bounds);
         boundsReady = true;
 
-        if (cropRect.isEmpty() || !imageBounds.contains(cropRect)) {
+        if (!hadBounds || oldBounds.width() <= 1 || oldBounds.height() <= 1) {
             resetToFullImage();
         } else {
-            clampCropRect();
+            remapPoints(oldBounds, imageBounds);
+            clampAllPoints();
             invalidate();
         }
     }
@@ -96,69 +114,98 @@ public class CropOverlayView extends View {
         if (!boundsReady) {
             return;
         }
-        cropRect.set(imageBounds);
+        points[0].set(imageBounds.left, imageBounds.top);
+        points[1].set(imageBounds.right, imageBounds.top);
+        points[2].set(imageBounds.right, imageBounds.bottom);
+        points[3].set(imageBounds.left, imageBounds.bottom);
         invalidate();
     }
 
-    public Rect getCropRectInBitmap(int bitmapWidth, int bitmapHeight) {
-        if (!boundsReady || bitmapWidth <= 0 || bitmapHeight <= 0) {
-            return new Rect(0, 0, Math.max(1, bitmapWidth), Math.max(1, bitmapHeight));
+    public void setCropPointsFromBitmap(float[] bitmapPoints) {
+        if (!boundsReady || bitmapPoints == null || bitmapPoints.length < 8) {
+            return;
         }
 
-        float scaleX = bitmapWidth / imageBounds.width();
-        float scaleY = bitmapHeight / imageBounds.height();
+        for (int i = 0; i < POINT_COUNT; i++) {
+            float bitmapX = clampFloat(bitmapPoints[i * 2], 0, bitmapWidth);
+            float bitmapY = clampFloat(bitmapPoints[i * 2 + 1], 0, bitmapHeight);
+            points[i].set(
+                    imageBounds.left + bitmapX / bitmapWidth * imageBounds.width(),
+                    imageBounds.top + bitmapY / bitmapHeight * imageBounds.height()
+            );
+        }
+        clampAllPoints();
+        invalidate();
+    }
 
-        int left = clamp(Math.round((cropRect.left - imageBounds.left) * scaleX), 0, bitmapWidth - 1);
-        int top = clamp(Math.round((cropRect.top - imageBounds.top) * scaleY), 0, bitmapHeight - 1);
-        int right = clamp(Math.round((cropRect.right - imageBounds.left) * scaleX), left + 1, bitmapWidth);
-        int bottom = clamp(Math.round((cropRect.bottom - imageBounds.top) * scaleY), top + 1, bitmapHeight);
+    public float[] getCropPointsInBitmap() {
+        float[] output = new float[8];
+        if (!boundsReady) {
+            output[0] = 0;
+            output[1] = 0;
+            output[2] = bitmapWidth;
+            output[3] = 0;
+            output[4] = bitmapWidth;
+            output[5] = bitmapHeight;
+            output[6] = 0;
+            output[7] = bitmapHeight;
+            return output;
+        }
 
-        return new Rect(left, top, right, bottom);
+        for (int i = 0; i < POINT_COUNT; i++) {
+            output[i * 2] = clampFloat((points[i].x - imageBounds.left) / imageBounds.width() * bitmapWidth, 0, bitmapWidth);
+            output[i * 2 + 1] = clampFloat((points[i].y - imageBounds.top) / imageBounds.height() * bitmapHeight, 0, bitmapHeight);
+        }
+        return output;
+    }
+
+    public Rect getCropBoundsInBitmap() {
+        float[] cropPoints = getCropPointsInBitmap();
+        float left = bitmapWidth;
+        float top = bitmapHeight;
+        float right = 0;
+        float bottom = 0;
+
+        for (int i = 0; i < POINT_COUNT; i++) {
+            float x = cropPoints[i * 2];
+            float y = cropPoints[i * 2 + 1];
+            left = Math.min(left, x);
+            top = Math.min(top, y);
+            right = Math.max(right, x);
+            bottom = Math.max(bottom, y);
+        }
+
+        int l = clamp(Math.round(left), 0, bitmapWidth - 1);
+        int t = clamp(Math.round(top), 0, bitmapHeight - 1);
+        int r = clamp(Math.round(right), l + 1, bitmapWidth);
+        int b = clamp(Math.round(bottom), t + 1, bitmapHeight);
+        return new Rect(l, t, r, b);
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (!boundsReady || cropRect.isEmpty()) {
+        if (!boundsReady) {
             return;
         }
 
-        canvas.drawRect(0, 0, getWidth(), cropRect.top, shadePaint);
-        canvas.drawRect(0, cropRect.bottom, getWidth(), getHeight(), shadePaint);
-        canvas.drawRect(0, cropRect.top, cropRect.left, cropRect.bottom, shadePaint);
-        canvas.drawRect(cropRect.right, cropRect.top, getWidth(), cropRect.bottom, shadePaint);
+        updatePath();
 
-        canvas.drawRect(cropRect, framePaint);
-        drawCornerHandle(canvas, cropRect.left, cropRect.top);
-        drawCornerHandle(canvas, cropRect.right, cropRect.top);
-        drawCornerHandle(canvas, cropRect.left, cropRect.bottom);
-        drawCornerHandle(canvas, cropRect.right, cropRect.bottom);
-        drawEdgeHandle(canvas, (cropRect.left + cropRect.right) / 2f, cropRect.top, true);
-        drawEdgeHandle(canvas, (cropRect.left + cropRect.right) / 2f, cropRect.bottom, true);
-        drawEdgeHandle(canvas, cropRect.left, (cropRect.top + cropRect.bottom) / 2f, false);
-        drawEdgeHandle(canvas, cropRect.right, (cropRect.top + cropRect.bottom) / 2f, false);
-    }
+        int layer = canvas.saveLayer(0, 0, getWidth(), getHeight(), null);
+        canvas.drawRect(0, 0, getWidth(), getHeight(), shadePaint);
+        canvas.drawPath(cropPath, clearPaint);
+        canvas.restoreToCount(layer);
 
-    private void drawCornerHandle(Canvas canvas, float cx, float cy) {
-        canvas.drawCircle(cx, cy, handleRadius, handleFillPaint);
-        canvas.drawCircle(cx, cy, handleRadius, handleStrokePaint);
-    }
-
-    private void drawEdgeHandle(Canvas canvas, float cx, float cy, boolean horizontal) {
-        float longSide = dp(26);
-        float shortSide = dp(7);
-        if (horizontal) {
-            handleRect.set(cx - longSide, cy - shortSide, cx + longSide, cy + shortSide);
-        } else {
-            handleRect.set(cx - shortSide, cy - longSide, cx + shortSide, cy + longSide);
+        canvas.drawPath(cropPath, framePaint);
+        for (PointF point : points) {
+            canvas.drawCircle(point.x, point.y, handleRadius, handleFillPaint);
+            canvas.drawCircle(point.x, point.y, handleRadius, handleStrokePaint);
         }
-        canvas.drawRoundRect(handleRect, shortSide, shortSide, handleFillPaint);
-        canvas.drawRoundRect(handleRect, shortSide, shortSide, handleStrokePaint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (!boundsReady || cropRect.isEmpty()) {
+        if (!boundsReady) {
             return false;
         }
 
@@ -167,8 +214,8 @@ public class CropOverlayView extends View {
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                activeHandle = findHandle(x, y);
-                if (activeHandle == HANDLE_NONE) {
+                activePoint = findActivePoint(x, y);
+                if (activePoint == MOVE_NONE) {
                     return false;
                 }
                 lastTouchX = x;
@@ -179,7 +226,12 @@ public class CropOverlayView extends View {
             case MotionEvent.ACTION_MOVE:
                 float dx = x - lastTouchX;
                 float dy = y - lastTouchY;
-                updateCropRect(dx, dy);
+                if (activePoint == MOVE_POLYGON) {
+                    movePolygon(dx, dy);
+                } else if (activePoint >= 0 && activePoint < POINT_COUNT) {
+                    points[activePoint].x = clampFloat(points[activePoint].x + dx, imageBounds.left, imageBounds.right);
+                    points[activePoint].y = clampFloat(points[activePoint].y + dy, imageBounds.top, imageBounds.bottom);
+                }
                 lastTouchX = x;
                 lastTouchY = y;
                 invalidate();
@@ -187,7 +239,7 @@ public class CropOverlayView extends View {
 
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
-                activeHandle = HANDLE_NONE;
+                activePoint = MOVE_NONE;
                 getParent().requestDisallowInterceptTouchEvent(false);
                 return true;
 
@@ -196,128 +248,99 @@ public class CropOverlayView extends View {
         }
     }
 
-    private int findHandle(float x, float y) {
-        if (near(x, y, cropRect.left, cropRect.top)) {
-            return HANDLE_LEFT | HANDLE_TOP;
-        }
-        if (near(x, y, cropRect.right, cropRect.top)) {
-            return HANDLE_RIGHT | HANDLE_TOP;
-        }
-        if (near(x, y, cropRect.left, cropRect.bottom)) {
-            return HANDLE_LEFT | HANDLE_BOTTOM;
-        }
-        if (near(x, y, cropRect.right, cropRect.bottom)) {
-            return HANDLE_RIGHT | HANDLE_BOTTOM;
-        }
-        if (Math.abs(y - cropRect.top) <= edgeTouchSize && x >= cropRect.left && x <= cropRect.right) {
-            return HANDLE_TOP;
-        }
-        if (Math.abs(y - cropRect.bottom) <= edgeTouchSize && x >= cropRect.left && x <= cropRect.right) {
-            return HANDLE_BOTTOM;
-        }
-        if (Math.abs(x - cropRect.left) <= edgeTouchSize && y >= cropRect.top && y <= cropRect.bottom) {
-            return HANDLE_LEFT;
-        }
-        if (Math.abs(x - cropRect.right) <= edgeTouchSize && y >= cropRect.top && y <= cropRect.bottom) {
-            return HANDLE_RIGHT;
-        }
-        if (cropRect.contains(x, y)) {
-            return HANDLE_MOVE;
-        }
-        return HANDLE_NONE;
-    }
-
-    private boolean near(float x, float y, float targetX, float targetY) {
-        float distanceX = x - targetX;
-        float distanceY = y - targetY;
-        return distanceX * distanceX + distanceY * distanceY <= edgeTouchSize * edgeTouchSize;
-    }
-
-    private void updateCropRect(float dx, float dy) {
-        if (activeHandle == HANDLE_MOVE) {
-            cropRect.offset(dx, dy);
-            clampMoveRect();
-            return;
-        }
-
-        if ((activeHandle & HANDLE_LEFT) != 0) {
-            cropRect.left += dx;
-        }
-        if ((activeHandle & HANDLE_RIGHT) != 0) {
-            cropRect.right += dx;
-        }
-        if ((activeHandle & HANDLE_TOP) != 0) {
-            cropRect.top += dy;
-        }
-        if ((activeHandle & HANDLE_BOTTOM) != 0) {
-            cropRect.bottom += dy;
-        }
-        clampCropRect();
-    }
-
-    private void clampMoveRect() {
-        float offsetX = 0f;
-        float offsetY = 0f;
-        if (cropRect.left < imageBounds.left) {
-            offsetX = imageBounds.left - cropRect.left;
-        } else if (cropRect.right > imageBounds.right) {
-            offsetX = imageBounds.right - cropRect.right;
-        }
-        if (cropRect.top < imageBounds.top) {
-            offsetY = imageBounds.top - cropRect.top;
-        } else if (cropRect.bottom > imageBounds.bottom) {
-            offsetY = imageBounds.bottom - cropRect.bottom;
-        }
-        cropRect.offset(offsetX, offsetY);
-    }
-
-    private void clampCropRect() {
-        if (cropRect.left < imageBounds.left) {
-            cropRect.left = imageBounds.left;
-        }
-        if (cropRect.top < imageBounds.top) {
-            cropRect.top = imageBounds.top;
-        }
-        if (cropRect.right > imageBounds.right) {
-            cropRect.right = imageBounds.right;
-        }
-        if (cropRect.bottom > imageBounds.bottom) {
-            cropRect.bottom = imageBounds.bottom;
-        }
-
-        float maxMinWidth = Math.min(minCropSize, imageBounds.width());
-        float maxMinHeight = Math.min(minCropSize, imageBounds.height());
-
-        if (cropRect.width() < maxMinWidth) {
-            if ((activeHandle & HANDLE_LEFT) != 0) {
-                cropRect.left = cropRect.right - maxMinWidth;
-            } else {
-                cropRect.right = cropRect.left + maxMinWidth;
+    private int findActivePoint(float x, float y) {
+        for (int i = 0; i < POINT_COUNT; i++) {
+            float dx = x - points[i].x;
+            float dy = y - points[i].y;
+            if (dx * dx + dy * dy <= touchRadius * touchRadius) {
+                return i;
             }
         }
-        if (cropRect.height() < maxMinHeight) {
-            if ((activeHandle & HANDLE_TOP) != 0) {
-                cropRect.top = cropRect.bottom - maxMinHeight;
-            } else {
-                cropRect.bottom = cropRect.top + maxMinHeight;
+        if (isInsidePolygon(x, y)) {
+            return MOVE_POLYGON;
+        }
+        return MOVE_NONE;
+    }
+
+    private boolean isInsidePolygon(float x, float y) {
+        boolean inside = false;
+        for (int i = 0, j = POINT_COUNT - 1; i < POINT_COUNT; j = i++) {
+            boolean intersects = (points[i].y > y) != (points[j].y > y)
+                    && x < (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y + 0.0001f) + points[i].x;
+            if (intersects) {
+                inside = !inside;
             }
         }
+        return inside;
+    }
 
-        if (cropRect.left < imageBounds.left) {
-            cropRect.offset(imageBounds.left - cropRect.left, 0);
+    private void movePolygon(float dx, float dy) {
+        computePolygonBounds();
+        if (polygonBounds.left + dx < imageBounds.left) {
+            dx = imageBounds.left - polygonBounds.left;
         }
-        if (cropRect.right > imageBounds.right) {
-            cropRect.offset(imageBounds.right - cropRect.right, 0);
+        if (polygonBounds.right + dx > imageBounds.right) {
+            dx = imageBounds.right - polygonBounds.right;
         }
-        if (cropRect.top < imageBounds.top) {
-            cropRect.offset(0, imageBounds.top - cropRect.top);
+        if (polygonBounds.top + dy < imageBounds.top) {
+            dy = imageBounds.top - polygonBounds.top;
         }
-        if (cropRect.bottom > imageBounds.bottom) {
-            cropRect.offset(0, imageBounds.bottom - cropRect.bottom);
+        if (polygonBounds.bottom + dy > imageBounds.bottom) {
+            dy = imageBounds.bottom - polygonBounds.bottom;
         }
+
+        for (PointF point : points) {
+            point.offset(dx, dy);
+        }
+    }
+
+    private void remapPoints(RectF oldBounds, RectF newBounds) {
+        for (PointF point : points) {
+            float rx = (point.x - oldBounds.left) / oldBounds.width();
+            float ry = (point.y - oldBounds.top) / oldBounds.height();
+            point.set(
+                    newBounds.left + rx * newBounds.width(),
+                    newBounds.top + ry * newBounds.height()
+            );
+        }
+    }
+
+    private void clampAllPoints() {
+        for (PointF point : points) {
+            point.x = clampFloat(point.x, imageBounds.left, imageBounds.right);
+            point.y = clampFloat(point.y, imageBounds.top, imageBounds.bottom);
+        }
+    }
+
+    private void updatePath() {
+        cropPath.reset();
+        cropPath.moveTo(points[0].x, points[0].y);
+        cropPath.lineTo(points[1].x, points[1].y);
+        cropPath.lineTo(points[2].x, points[2].y);
+        cropPath.lineTo(points[3].x, points[3].y);
+        cropPath.close();
+    }
+
+    private void computePolygonBounds() {
+        float left = points[0].x;
+        float top = points[0].y;
+        float right = points[0].x;
+        float bottom = points[0].y;
+
+        for (int i = 1; i < POINT_COUNT; i++) {
+            left = Math.min(left, points[i].x);
+            top = Math.min(top, points[i].y);
+            right = Math.max(right, points[i].x);
+            bottom = Math.max(bottom, points[i].y);
+        }
+        polygonBounds.set(left, top, right, bottom);
     }
 
     private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private float clampFloat(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
     }
 

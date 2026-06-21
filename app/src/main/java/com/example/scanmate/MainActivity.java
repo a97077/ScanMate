@@ -215,13 +215,13 @@ public class MainActivity extends AppCompatActivity {
             actions.setPadding(0, dp(12), 0, 0);
 
             Button shareButton = actionButton("分享");
-            shareButton.setOnClickListener(v -> sharePdf(document.pdfUri));
+            shareButton.setOnClickListener(v -> shareDocument(document));
 
             Button saveButton = actionButton("另存為PDF");
             saveButton.setOnClickListener(v -> copyDocument(document));
 
             Button openButton = actionButton("查看");
-            openButton.setOnClickListener(v -> openPdf(document.pdfUri));
+            openButton.setOnClickListener(v -> openDocument(document));
 
             actions.addView(shareButton, actionLayoutParams(true));
             actions.addView(saveButton, actionLayoutParams(true));
@@ -273,39 +273,46 @@ public class MainActivity extends AppCompatActivity {
         return params;
     }
 
-    private void sharePdf(Uri pdfUri) {
-        if (pdfUri == null) {
-            showStatus("請先儲存 PDF");
+    private void shareDocument(DocumentItem document) {
+        if (document.pdfUri == null) {
+            showStatus("找不到可分享的文件");
             return;
         }
 
         Intent shareIntent = new Intent(Intent.ACTION_SEND);
-        shareIntent.setType("application/pdf");
-        shareIntent.putExtra(Intent.EXTRA_STREAM, pdfUri);
+        shareIntent.setType(mimeTypeFor(document));
+        shareIntent.putExtra(Intent.EXTRA_STREAM, document.pdfUri);
         shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
         try {
-            startActivity(Intent.createChooser(shareIntent, "分享 PDF"));
+            startActivity(Intent.createChooser(shareIntent, "分享文件"));
         } catch (ActivityNotFoundException e) {
-            showStatus("找不到可分享 PDF 的應用程式");
+            showStatus("找不到可分享此文件的應用程式");
         }
     }
 
-    private void openPdf(Uri pdfUri) {
-        if (pdfUri == null) {
-            showStatus("請先儲存 PDF");
+    private void openDocument(DocumentItem document) {
+        if (document.pdfUri == null) {
+            showStatus("找不到可開啟的文件");
             return;
         }
 
         Intent openIntent = new Intent(Intent.ACTION_VIEW);
-        openIntent.setDataAndType(pdfUri, "application/pdf");
+        openIntent.setDataAndType(document.pdfUri, mimeTypeFor(document));
         openIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
         try {
             startActivity(openIntent);
         } catch (ActivityNotFoundException e) {
-            showStatus("找不到可開啟 PDF 的應用程式");
+            showStatus("找不到可開啟此文件的應用程式");
         }
+    }
+
+    private String mimeTypeFor(DocumentItem document) {
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            return "image/png";
+        }
+        return "application/pdf";
     }
 
     private void importPdfDocument(Uri uri) {

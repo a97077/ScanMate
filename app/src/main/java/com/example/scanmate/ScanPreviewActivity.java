@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.graphics.pdf.PdfDocument;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,6 +15,7 @@ import android.text.InputType;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -31,6 +34,8 @@ public class ScanPreviewActivity extends AppCompatActivity {
     private ImageView imgPreviewDocument;
     private TextView txtPreviewTitle;
     private TextView txtPreviewPage;
+    private LinearLayout layoutPreviewThumbnails;
+    private int currentPageIndex = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +43,10 @@ public class ScanPreviewActivity extends AppCompatActivity {
         setContentView(R.layout.activity_scan_preview);
 
         DocumentStore.init(this);
+
+        if (ScanDraftStore.getPageCount() == 0) {
+            ScanDraftStore.restoreDraft(this);
+        }
 
         if (ScanDraftStore.getPageCount() == 0) {
             Toast.makeText(this, "目前沒有掃描頁面", Toast.LENGTH_SHORT).show();
@@ -48,6 +57,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
         imgPreviewDocument = findViewById(R.id.imgPreviewDocument);
         txtPreviewTitle = findViewById(R.id.txtPreviewTitle);
         txtPreviewPage = findViewById(R.id.txtPreviewPage);
+        layoutPreviewThumbnails = findViewById(R.id.layoutPreviewThumbnails);
 
         View btnBack = findViewById(R.id.btnPreviewBack);
         View btnTitleEdit = findViewById(R.id.btnPreviewTitleEdit);
@@ -62,7 +72,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
 
         btnBack.setOnClickListener(v -> finish());
         btnTitleEdit.setOnClickListener(v -> showRenameDialog());
-        btnGrid.setOnClickListener(v -> startActivity(new Intent(this, DocumentsActivity.class)));
+        btnGrid.setOnClickListener(v -> showPageActions());
         btnMore.setOnClickListener(v -> showMoreActions());
         btnContinueAdd.setOnClickListener(v -> openCaptureForAppend());
         btnAdd.setOnClickListener(v -> openCaptureForAppend());
@@ -83,11 +93,18 @@ public class ScanPreviewActivity extends AppCompatActivity {
     }
 
     private void renderPreview() {
-        Bitmap latest = ScanDraftStore.getLatestPage();
         int pageCount = ScanDraftStore.getPageCount();
-        imgPreviewDocument.setImageBitmap(latest);
+        if (pageCount == 0) {
+            finish();
+            return;
+        }
+
+        currentPageIndex = Math.max(0, Math.min(currentPageIndex, pageCount - 1));
+        Bitmap page = ScanDraftStore.getPage(currentPageIndex);
+        imgPreviewDocument.setImageBitmap(page);
         txtPreviewTitle.setText(ScanDraftStore.getDocumentTitle());
-        txtPreviewPage.setText(pageCount + "/" + pageCount);
+        txtPreviewPage.setText((currentPageIndex + 1) + "/" + pageCount);
+        renderThumbnails();
     }
 
     private void openCaptureForAppend() {
@@ -102,7 +119,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
         if (pageCount == 0) {
             return;
         }
-        ScanDraftStore.editPage(pageCount - 1);
+        ScanDraftStore.editPage(currentPageIndex);
         startActivity(new Intent(this, ScanEditActivity.class));
     }
 
@@ -142,13 +159,14 @@ public class ScanPreviewActivity extends AppCompatActivity {
                         return;
                     }
                     ScanDraftStore.setDocumentTitle(title);
+                    ScanDraftStore.saveDraft(this);
                     renderPreview();
                 })
                 .show();
     }
 
     private void showMoreActions() {
-        String[] actions = {"儲存 PDF", "分享 PDF", "全部文檔"};
+        String[] actions = {"儲存 PDF", "分享 PDF", "頁面管理", "全部文檔"};
         new AlertDialog.Builder(this)
                 .setTitle("文件操作")
                 .setItems(actions, (dialog, which) -> {
@@ -159,11 +177,96 @@ public class ScanPreviewActivity extends AppCompatActivity {
                         }
                     } else if (which == 1) {
                         shareCurrentPdf();
+                    } else if (which == 2) {
+                        showPageActions();
                     } else {
                         startActivity(new Intent(this, DocumentsActivity.class));
                     }
                 })
                 .show();
+    }
+
+    private void renderThumbnails() {
+        layoutPreviewThumbnails.removeAllViews();
+        int pageCount = ScanDraftStore.getPageCount();
+        for (int i = 0; i < pageCount; i++) {
+            final int index = i;
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setPadding(dp(4), dp(4), dp(4), dp(3));
+            item.setBackground(rounded(index == currentPageIndex ? "#2DBEA6" : "#303136", dp(8)));
+            item.setOnClickListener(v -> {
+                currentPageIndex = index;
+                renderPreview();
+            });
+
+            ImageView thumbnail = new ImageView(this);
+            thumbnail.setImageBitmap(ScanDraftStore.getPage(index));
+            thumbnail.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            thumbnail.setBackgroundColor(Color.parseColor("#111113"));
+            item.addView(thumbnail, new LinearLayout.LayoutParams(dp(56), dp(58)));
+
+            TextView label = new TextView(this);
+            label.setText(String.valueOf(index + 1));
+            label.setGravity(android.view.Gravity.CENTER);
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(12);
+            label.setTypeface(Typeface.DEFAULT_BOLD);
+            item.addView(label, new LinearLayout.LayoutParams(dp(56), dp(20)));
+
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(0, 0, dp(10), 0);
+            layoutPreviewThumbnails.addView(item, params);
+        }
+    }
+
+    private void showPageActions() {
+        String[] actions = {"編輯本頁", "刪除此頁", "本頁前移", "本頁後移", "繼續添加"};
+        new AlertDialog.Builder(this)
+                .setTitle("頁面管理 " + (currentPageIndex + 1) + "/" + ScanDraftStore.getPageCount())
+                .setItems(actions, (dialog, which) -> {
+                    if (which == 0) {
+                        editLatestPage();
+                    } else if (which == 1) {
+                        deleteCurrentPage();
+                    } else if (which == 2) {
+                        moveCurrentPage(-1);
+                    } else if (which == 3) {
+                        moveCurrentPage(1);
+                    } else {
+                        openCaptureForAppend();
+                    }
+                })
+                .show();
+    }
+
+    private void deleteCurrentPage() {
+        ScanDraftStore.removePage(currentPageIndex);
+        if (ScanDraftStore.getPageCount() == 0) {
+            ScanDraftStore.clear();
+            ScanDraftStore.clearPersistedDraft(this);
+            finish();
+            return;
+        }
+        currentPageIndex = Math.min(currentPageIndex, ScanDraftStore.getPageCount() - 1);
+        ScanDraftStore.saveDraft(this);
+        renderPreview();
+        Toast.makeText(this, "已刪除此頁", Toast.LENGTH_SHORT).show();
+    }
+
+    private void moveCurrentPage(int direction) {
+        int targetIndex = currentPageIndex + direction;
+        if (targetIndex < 0 || targetIndex >= ScanDraftStore.getPageCount()) {
+            Toast.makeText(this, "此頁已在邊界", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ScanDraftStore.movePage(currentPageIndex, targetIndex);
+        currentPageIndex = targetIndex;
+        ScanDraftStore.saveDraft(this);
+        renderPreview();
     }
 
     private Uri createLocalPdf() {
@@ -242,5 +345,16 @@ public class ScanPreviewActivity extends AppCompatActivity {
     private String generatePdfFileName() {
         String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         return "ScanMate_" + timestamp + ".pdf";
+    }
+
+    private GradientDrawable rounded(String color, int radius) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(color));
+        drawable.setCornerRadius(radius);
+        return drawable;
+    }
+
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
 }

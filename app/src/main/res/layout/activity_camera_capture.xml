@@ -22,6 +22,17 @@
             android:textColor="#FFFFFF"
             android:textSize="28sp" />
 
+        <TextView
+            android:id="@+id/btnCaptureDone"
+            android:layout_width="62dp"
+            android:layout_height="48dp"
+            android:gravity="center"
+            android:text="完成"
+            android:textColor="#40D6C1"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
         <Space
             android:layout_width="0dp"
             android:layout_height="1dp"
@@ -95,6 +106,7 @@
             android:paddingEnd="12dp">
 
             <TextView
+                android:id="@+id/btnModeWord"
                 android:layout_width="112dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
@@ -103,6 +115,7 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:id="@+id/btnModeSignature"
                 android:layout_width="92dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
@@ -111,6 +124,7 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:id="@+id/btnModeSingle"
                 android:layout_width="112dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
@@ -120,6 +134,7 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/btnModeContinuous"
                 android:layout_width="112dp"
                 android:layout_height="match_parent"
                 android:gravity="center"
@@ -128,6 +143,7 @@
                 android:textSize="15sp" />
 
             <TextView
+                android:id="@+id/btnModeErase"
                 android:layout_width="92dp"
                 android:layout_height="match_parent"
                 android:gravity="center"

@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
@@ -39,8 +41,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
 
+import com.chaquo.python.PyObject;
+import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -62,6 +70,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private TextView txtCaptureHint;
     private TextView btnFlash;
     private TextView btnHd;
+    private TextView btnCaptureDone;
+    private TextView btnModeSingle;
+    private TextView btnModeContinuous;
 
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraSession;
@@ -77,6 +88,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private int sensorOrientation = 90;
     private boolean previewReady = false;
     private boolean cameraUnavailable = false;
+    private boolean continuousMode = false;
     private boolean flashOff = true;
     private boolean hdEnabled = true;
 
@@ -165,6 +177,9 @@ public class CameraCaptureActivity extends AppCompatActivity {
         txtCaptureHint = findViewById(R.id.txtCaptureHint);
         btnFlash = findViewById(R.id.btnFlash);
         btnHd = findViewById(R.id.btnHd);
+        btnCaptureDone = findViewById(R.id.btnCaptureDone);
+        btnModeSingle = findViewById(R.id.btnModeSingle);
+        btnModeContinuous = findViewById(R.id.btnModeContinuous);
 
         documentTitle = getIntent().getStringExtra("document_title");
         if (documentTitle == null || documentTitle.trim().isEmpty()) {
@@ -179,6 +194,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         View btnImportDocument = findViewById(R.id.btnCaptureImportDocument);
 
         btnClose.setOnClickListener(v -> finish());
+        btnCaptureDone.setOnClickListener(v -> finishContinuousCapture());
         btnMenu.setOnClickListener(v -> showCaptureOptions());
         btnFlash.setOnClickListener(v -> toggleFlashState());
         btnHd.setOnClickListener(v -> toggleHdState());
@@ -186,6 +202,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
         btnAllFunctions.setOnClickListener(v -> startActivity(new Intent(this, ToolboxActivity.class)));
         btnImportImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
         btnImportDocument.setOnClickListener(v -> importDocumentLauncher.launch(new String[]{"application/pdf"}));
+        btnModeSingle.setOnClickListener(v -> setContinuousMode(false));
+        btnModeContinuous.setOnClickListener(v -> setContinuousMode(true));
 
         captureMode = getIntent().getStringExtra("capture_mode");
         if (!"append".equals(captureMode)) {
@@ -193,7 +211,12 @@ public class CameraCaptureActivity extends AppCompatActivity {
         }
         if ("import_image".equals(captureMode)) {
             txtCaptureHint.postDelayed(() -> pickImageLauncher.launch("image/*"), 250);
+        } else if ("continuous".equals(captureMode)) {
+            setContinuousMode(true);
         } else if ("id".equals(captureMode)) {
+            if (documentTitle.startsWith("ScanMate ")) {
+                documentTitle = "IDScan " + new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.getDefault()).format(new Date());
+            }
             showHint("證件掃描模式：請將證件置於畫面中央");
         } else if ("book".equals(captureMode)) {
             showHint("書籍掃描模式：請讓頁面攤平並保持光線均勻");
@@ -406,7 +429,13 @@ public class CameraCaptureActivity extends AppCompatActivity {
             }
 
             Uri imageUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", photoFile);
-            runOnUiThread(() -> openCropScreen(imageUri));
+            runOnUiThread(() -> {
+                if (continuousMode) {
+                    processContinuousCapture(imageUri);
+                } else {
+                    openCropScreen(imageUri);
+                }
+            });
         } catch (Exception e) {
             runOnUiThread(() -> showHint("照片儲存失敗：" + e.getMessage()));
         } finally {
@@ -436,6 +465,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
         Intent intent = new Intent(this, CropActivity.class);
         intent.putExtra("image_uri", imageUri.toString());
         intent.putExtra("document_title", documentTitle);
+        intent.putExtra("capture_mode", captureMode);
         startActivity(intent);
     }
 
@@ -450,6 +480,78 @@ public class CameraCaptureActivity extends AppCompatActivity {
         btnHd.setText(hdEnabled ? "HD" : "SD");
         btnHd.setTextColor(hdEnabled ? Color.WHITE : Color.parseColor("#A8ABB2"));
         showHint(hdEnabled ? "高畫質掃描已開啟" : "快速掃描模式");
+    }
+
+    private void setContinuousMode(boolean enabled) {
+        continuousMode = enabled;
+        btnModeSingle.setTextColor(enabled ? Color.parseColor("#C4C7CC") : Color.parseColor("#40D6C1"));
+        btnModeSingle.setTypeface(null, enabled ? 0 : 1);
+        btnModeContinuous.setTextColor(enabled ? Color.parseColor("#40D6C1") : Color.parseColor("#C4C7CC"));
+        btnModeContinuous.setTypeface(null, enabled ? 1 : 0);
+        btnCaptureDone.setVisibility(ScanDraftStore.getPageCount() > 0 ? View.VISIBLE : View.GONE);
+        showHint(enabled ? "連續拍攝模式：每次快門會加入一頁" : "單張拍攝模式");
+    }
+
+    private void finishContinuousCapture() {
+        if (ScanDraftStore.getPageCount() == 0) {
+            showHint("尚未拍攝任何頁面");
+            return;
+        }
+        startActivity(new Intent(this, ScanPreviewActivity.class));
+    }
+
+    private void processContinuousCapture(Uri imageUri) {
+        showHint("正在加入掃描頁面");
+        new Thread(() -> {
+            Bitmap bitmap = decodeBitmap(imageUri);
+            Bitmap scanned = bitmap == null ? null : runOpenCvAutoScan(bitmap);
+            if (scanned == null) {
+                scanned = bitmap;
+            }
+
+            Bitmap finalBitmap = scanned;
+            if (finalBitmap != null && "id".equals(captureMode)) {
+                finalBitmap = IdCardComposer.composeA4Page(finalBitmap, ScanDraftStore.getPageCount() + 1, documentTitle);
+            }
+            Bitmap pageBitmap = finalBitmap;
+            runOnUiThread(() -> {
+                if (pageBitmap == null) {
+                    showHint("此頁處理失敗，請重新拍攝");
+                    return;
+                }
+                ScanDraftStore.start(imageUri, pageBitmap, documentTitle);
+                ScanDraftStore.commitCurrentPage();
+                ScanDraftStore.saveDraft(this);
+                btnCaptureDone.setVisibility(View.VISIBLE);
+                showHint("已加入第 " + ScanDraftStore.getPageCount() + " 頁，可繼續拍攝或按完成");
+            });
+        }).start();
+    }
+
+    private Bitmap decodeBitmap(Uri uri) {
+        try (InputStream inputStream = getContentResolver().openInputStream(uri)) {
+            return BitmapFactory.decodeStream(inputStream);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Bitmap runOpenCvAutoScan(Bitmap bitmap) {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+
+            if (!Python.isStarted()) {
+                Python.start(new AndroidPlatform(this));
+            }
+
+            PyObject module = Python.getInstance().getModule("scan_cv");
+            PyObject result = module.callAttr("canny_process", outputStream.toByteArray());
+            byte[] pngBytes = result.toJava(byte[].class);
+            return BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void importPdfDocument(Uri uri) {

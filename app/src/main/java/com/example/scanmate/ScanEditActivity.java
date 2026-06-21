@@ -170,6 +170,7 @@ public class ScanEditActivity extends AppCompatActivity {
     private void confirmEdit() {
         ScanDraftStore.setCurrentBitmap(currentBitmap);
         ScanDraftStore.commitCurrentPage();
+        ScanDraftStore.saveDraft(this);
         startActivity(new Intent(this, ScanPreviewActivity.class));
     }
 

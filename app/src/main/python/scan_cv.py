@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import json
 
 
 def _decode_image(image_bytes):
@@ -120,6 +121,73 @@ def canny_process(image_bytes):
         2
     )
 
+    return _encode_png(scanned)
+
+
+def _find_document_points(img):
+    original = img.copy()
+    ratio = img.shape[0] / 500.0
+    resized = cv2.resize(img, (int(img.shape[1] / ratio), 500))
+
+    gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    edged = cv2.Canny(gray, 60, 180)
+    edged = cv2.dilate(edged, None, iterations=1)
+
+    contours, _ = cv2.findContours(
+        edged.copy(),
+        cv2.RETR_LIST,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)[:10]
+
+    for c in contours:
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02 * peri, True)
+        area = cv2.contourArea(approx)
+        if len(approx) == 4 and area > resized.shape[0] * resized.shape[1] * 0.12:
+            return order_points(approx.reshape(4, 2) * ratio)
+
+    h, w = original.shape[:2]
+    inset_x = max(4, int(w * 0.03))
+    inset_y = max(4, int(h * 0.03))
+    return np.array([
+        [inset_x, inset_y],
+        [w - inset_x, inset_y],
+        [w - inset_x, h - inset_y],
+        [inset_x, h - inset_y],
+    ], dtype="float32")
+
+
+def detect_document_corners(image_bytes):
+    img = _decode_image(image_bytes)
+    pts = _find_document_points(img)
+    points = [{"x": float(p[0]), "y": float(p[1])} for p in pts]
+    return json.dumps(points)
+
+
+def perspective_process(image_bytes, points_json, enhance=True):
+    img = _decode_image(image_bytes)
+    raw_points = json.loads(points_json)
+    pts = np.array(
+        [[float(p["x"]), float(p["y"])] for p in raw_points],
+        dtype="float32"
+    )
+    warped = four_point_transform(img, pts)
+
+    if not enhance:
+        return _encode_png(warped)
+
+    gray = cv2.cvtColor(warped, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    scanned = cv2.adaptiveThreshold(
+        gray,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        17,
+        7
+    )
     return _encode_png(scanned)
 
 

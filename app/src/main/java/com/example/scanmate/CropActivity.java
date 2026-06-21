@@ -19,6 +19,9 @@ import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
@@ -33,8 +36,10 @@ public class CropActivity extends AppCompatActivity {
     private Bitmap workingBitmap;
     private Uri sourceUri;
     private String documentTitle;
+    private String captureMode;
     private boolean autoCorrectDocument = true;
     private boolean isProcessing = false;
+    private boolean isDetectingCorners = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +60,7 @@ public class CropActivity extends AppCompatActivity {
         if (documentTitle == null || documentTitle.trim().isEmpty()) {
             documentTitle = "ScanMate " + new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.getDefault()).format(new Date());
         }
+        captureMode = getIntent().getStringExtra("capture_mode");
 
         txtCropTitle.setText("裁剪");
 
@@ -75,6 +81,7 @@ public class CropActivity extends AppCompatActivity {
 
         imgCropPreview.setImageBitmap(workingBitmap);
         refreshCropOverlayBounds();
+        applyDetectedDocumentCorners();
 
         btnBack.setOnClickListener(v -> finish());
         btnRotateLeft.setOnClickListener(v -> rotateWorkingBitmap(-90));
@@ -129,6 +136,7 @@ public class CropActivity extends AppCompatActivity {
         );
         imgCropPreview.setImageBitmap(workingBitmap);
         refreshCropOverlayBounds();
+        applyDetectedDocumentCorners();
     }
 
     private void goToEditScreen() {
@@ -136,24 +144,29 @@ public class CropActivity extends AppCompatActivity {
             return;
         }
 
-        Bitmap selectedBitmap = cropWorkingBitmap();
-        if (selectedBitmap == null) {
-            selectedBitmap = workingBitmap;
-        }
-
         isProcessing = true;
         txtCropTitle.setText("文件校正中");
         Toast.makeText(this, autoCorrectDocument ? "正在進行文件校正" : "正在套用裁切範圍", Toast.LENGTH_SHORT).show();
 
-        Bitmap inputBitmap = selectedBitmap;
+        float[] cropPoints = cropOverlay.getCropPointsInBitmap();
 
         new Thread(() -> {
-            Bitmap outputBitmap = inputBitmap;
+            Bitmap outputBitmap;
             if (autoCorrectDocument) {
-                Bitmap corrected = runOpenCvDocumentCorrection(inputBitmap);
-                if (corrected != null) {
-                    outputBitmap = corrected;
+                outputBitmap = runPerspectiveCorrection(workingBitmap, cropPoints, true);
+                if (outputBitmap == null) {
+                    outputBitmap = cropWorkingBitmap();
                 }
+            } else {
+                outputBitmap = cropWorkingBitmap();
+            }
+
+            if (outputBitmap == null) {
+                outputBitmap = workingBitmap;
+            }
+
+            if ("id".equals(captureMode)) {
+                outputBitmap = IdCardComposer.composeA4Page(outputBitmap, ScanDraftStore.getPageCount() + 1, documentTitle);
             }
 
             Bitmap finalBitmap = outputBitmap;
@@ -166,7 +179,7 @@ public class CropActivity extends AppCompatActivity {
         }).start();
     }
 
-    private Bitmap runOpenCvDocumentCorrection(Bitmap bitmap) {
+    private Bitmap runPerspectiveCorrection(Bitmap bitmap, float[] cropPoints, boolean enhance) {
         try {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
@@ -176,7 +189,12 @@ public class CropActivity extends AppCompatActivity {
             }
 
             PyObject module = Python.getInstance().getModule("scan_cv");
-            PyObject result = module.callAttr("canny_process", outputStream.toByteArray());
+            PyObject result = module.callAttr(
+                    "perspective_process",
+                    outputStream.toByteArray(),
+                    buildPointsJson(cropPoints),
+                    enhance
+            );
             byte[] pngBytes = result.toJava(byte[].class);
             Bitmap corrected = BitmapFactory.decodeByteArray(pngBytes, 0, pngBytes.length);
             if (corrected == null) {
@@ -196,6 +214,7 @@ public class CropActivity extends AppCompatActivity {
             if (workingBitmap == null || cropOverlay == null) {
                 return;
             }
+            cropOverlay.setBitmapSize(workingBitmap.getWidth(), workingBitmap.getHeight());
             RectF displayedBounds = calculateDisplayedImageBounds();
             cropOverlay.setImageBounds(displayedBounds);
         });
@@ -223,7 +242,7 @@ public class CropActivity extends AppCompatActivity {
             return workingBitmap;
         }
 
-        Rect cropRect = cropOverlay.getCropRectInBitmap(workingBitmap.getWidth(), workingBitmap.getHeight());
+        Rect cropRect = cropOverlay.getCropBoundsInBitmap();
         int width = cropRect.width();
         int height = cropRect.height();
         if (width <= 0 || height <= 0) {
@@ -241,5 +260,59 @@ public class CropActivity extends AppCompatActivity {
         } catch (Exception ignored) {
             return workingBitmap;
         }
+    }
+
+    private void applyDetectedDocumentCorners() {
+        if (workingBitmap == null || isDetectingCorners) {
+            return;
+        }
+
+        isDetectingCorners = true;
+        Bitmap bitmapSnapshot = workingBitmap;
+        new Thread(() -> {
+            try {
+                ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                bitmapSnapshot.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+
+                if (!Python.isStarted()) {
+                    Python.start(new AndroidPlatform(this));
+                }
+
+                PyObject module = Python.getInstance().getModule("scan_cv");
+                String json = module.callAttr("detect_document_corners", outputStream.toByteArray()).toJava(String.class);
+                float[] points = parsePointsJson(json);
+
+                runOnUiThread(() -> {
+                    if (workingBitmap == bitmapSnapshot && cropOverlay != null) {
+                        cropOverlay.setCropPointsFromBitmap(points);
+                    }
+                    isDetectingCorners = false;
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> isDetectingCorners = false);
+            }
+        }).start();
+    }
+
+    private String buildPointsJson(float[] cropPoints) throws Exception {
+        JSONArray array = new JSONArray();
+        for (int i = 0; i < 4; i++) {
+            JSONObject object = new JSONObject();
+            object.put("x", cropPoints[i * 2]);
+            object.put("y", cropPoints[i * 2 + 1]);
+            array.put(object);
+        }
+        return array.toString();
+    }
+
+    private float[] parsePointsJson(String rawJson) throws Exception {
+        JSONArray array = new JSONArray(rawJson);
+        float[] points = new float[8];
+        for (int i = 0; i < 4 && i < array.length(); i++) {
+            JSONObject object = array.getJSONObject(i);
+            points[i * 2] = (float) object.optDouble("x", 0);
+            points[i * 2 + 1] = (float) object.optDouble("y", 0);
+        }
+        return points;
     }
 }

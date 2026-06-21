@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DocumentStore {
-    private static final int MAX_RECENT_COUNT = 20;
+    private static final int MAX_RECENT_COUNT = 100;
     private static final String PREF_NAME = "scanmate_documents";
     private static final String KEY_DOCUMENTS = "documents";
     private static final ArrayList<DocumentItem> documents = new ArrayList<>();
@@ -49,7 +49,7 @@ public class DocumentStore {
 
     public static DocumentItem getLatestPdf() {
         for (DocumentItem item : documents) {
-            if (item.pdfUri != null) {
+            if (item.pdfUri != null && "PDF".equalsIgnoreCase(item.type)) {
                 return item;
             }
         }

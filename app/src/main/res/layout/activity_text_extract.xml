@@ -57,6 +57,16 @@
             android:textAllCaps="false"
             android:textColor="#FFFFFF" />
 
+        <Button
+            android:id="@+id/btnExportOcrText"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="#4A4B50"
+            android:text="匯出文字"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF" />
+
         <ImageView
             android:id="@+id/imgTextPreview"
             android:layout_width="match_parent"

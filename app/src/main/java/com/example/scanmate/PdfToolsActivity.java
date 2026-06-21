@@ -1,24 +1,38 @@
 package com.example.scanmate;
 
 import android.content.ActivityNotFoundException;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.pdf.PdfDocument;
 import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.provider.OpenableColumns;
+import android.text.InputType;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class PdfToolsActivity extends AppCompatActivity {
@@ -32,6 +46,16 @@ public class PdfToolsActivity extends AppCompatActivity {
                     uri -> {
                         if (uri != null) {
                             importPdfDocument(uri);
+                        }
+                    }
+            );
+
+    private final ActivityResultLauncher<String[]> mergeDocumentLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.OpenDocument(),
+                    uri -> {
+                        if (uri != null) {
+                            mergeLatestWith(uri);
                         }
                     }
             );
@@ -64,6 +88,16 @@ public class PdfToolsActivity extends AppCompatActivity {
         findViewById(R.id.btnPdfOpenLatest).setOnClickListener(v -> openLatestPdf());
         findViewById(R.id.btnPdfShareLatest).setOnClickListener(v -> shareLatestPdf());
         findViewById(R.id.btnPdfCopyLatest).setOnClickListener(v -> copyLatestPdf());
+        findViewById(R.id.btnPdfMerge).setOnClickListener(v ->
+                mergeDocumentLauncher.launch(new String[]{"application/pdf"})
+        );
+        findViewById(R.id.btnPdfSplitFirst).setOnClickListener(v -> splitFirstPage());
+        findViewById(R.id.btnPdfDeleteFirst).setOnClickListener(v -> deleteFirstPage());
+        findViewById(R.id.btnPdfReverse).setOnClickListener(v -> reverseLatestPdf());
+        findViewById(R.id.btnPdfRotate).setOnClickListener(v -> rotateLatestPdf());
+        findViewById(R.id.btnPdfCompress).setOnClickListener(v -> compressLatestPdf());
+        findViewById(R.id.btnPdfToImage).setOnClickListener(v -> exportFirstPageImage());
+        findViewById(R.id.btnPdfToLongImage).setOnClickListener(v -> exportLongImage());
         findViewById(R.id.btnPdfAllDocs).setOnClickListener(v ->
                 startActivity(new Intent(this, DocumentsActivity.class))
         );
@@ -167,6 +201,299 @@ public class PdfToolsActivity extends AppCompatActivity {
             showToast("另存 PDF 失敗：" + e.getMessage());
         } finally {
             pendingCopyDocument = null;
+        }
+    }
+
+    private void mergeLatestWith(Uri secondPdfUri) {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+        persistReadPermission(secondPdfUri);
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 900, Integer.MAX_VALUE);
+            pages.addAll(renderPdfPages(secondPdfUri, 900, Integer.MAX_VALUE));
+            Uri uri = createPdfFromBitmaps("merged", pages);
+            showToast(uri == null ? "合併失敗" : "已合併 PDF");
+        } catch (Exception e) {
+            showToast("合併失敗：" + e.getMessage());
+        }
+    }
+
+    private void splitFirstPage() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 1000, 1);
+            Uri uri = createPdfFromBitmaps("first_page", pages);
+            showToast(uri == null ? "分割失敗" : "已分割第一頁");
+        } catch (Exception e) {
+            showToast("分割失敗：" + e.getMessage());
+        }
+    }
+
+    private void deleteFirstPage() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+        if (latest.pageCount <= 1) {
+            showToast("此 PDF 只有一頁，無法刪頁");
+            return;
+        }
+
+        EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setHint("輸入 1-" + latest.pageCount);
+        new AlertDialog.Builder(this)
+                .setTitle("刪除指定頁")
+                .setView(input)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("刪除並另存", (dialog, which) -> {
+                    String value = input.getText() == null ? "" : input.getText().toString().trim();
+                    int pageNumber;
+                    try {
+                        pageNumber = Integer.parseInt(value);
+                    } catch (Exception e) {
+                        showToast("頁碼格式錯誤");
+                        return;
+                    }
+                    deletePdfPage(pageNumber - 1);
+                })
+                .show();
+    }
+
+    private void deletePdfPage(int pageIndex) {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+        if (pageIndex < 0 || pageIndex >= latest.pageCount) {
+            showToast("頁碼超出範圍");
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 900, Integer.MAX_VALUE);
+            pages.remove(pageIndex);
+            Uri uri = createPdfFromBitmaps("delete_page", pages);
+            showToast(uri == null ? "刪頁失敗" : "已刪除第 " + (pageIndex + 1) + " 頁並另存");
+        } catch (Exception e) {
+            showToast("刪頁失敗：" + e.getMessage());
+        }
+    }
+
+    private void reverseLatestPdf() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 900, Integer.MAX_VALUE);
+            Collections.reverse(pages);
+            Uri uri = createPdfFromBitmaps("reordered", pages);
+            showToast(uri == null ? "重排失敗" : "已倒序重排並另存");
+        } catch (Exception e) {
+            showToast("重排失敗：" + e.getMessage());
+        }
+    }
+
+    private void rotateLatestPdf() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 900, Integer.MAX_VALUE);
+            ArrayList<Bitmap> rotatedPages = new ArrayList<>();
+            Matrix matrix = new Matrix();
+            matrix.postRotate(90);
+            for (Bitmap page : pages) {
+                rotatedPages.add(Bitmap.createBitmap(page, 0, 0, page.getWidth(), page.getHeight(), matrix, true));
+            }
+            Uri uri = createPdfFromBitmaps("rotated", rotatedPages);
+            showToast(uri == null ? "旋轉失敗" : "已旋轉並另存 PDF");
+        } catch (Exception e) {
+            showToast("旋轉失敗：" + e.getMessage());
+        }
+    }
+
+    private void compressLatestPdf() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 560, Integer.MAX_VALUE);
+            Uri uri = createPdfFromBitmaps("compressed", pages);
+            showToast(uri == null ? "壓縮失敗" : "已壓縮並另存 PDF");
+        } catch (Exception e) {
+            showToast("壓縮失敗：" + e.getMessage());
+        }
+    }
+
+    private void exportFirstPageImage() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 1200, 1);
+            if (pages.isEmpty()) {
+                showToast("沒有可轉換的頁面");
+                return;
+            }
+            Uri uri = saveBitmapAsPng(pages.get(0), "page_image", "PNG");
+            showToast(uri == null ? "轉圖片失敗" : "已輸出第一頁圖片");
+        } catch (Exception e) {
+            showToast("轉圖片失敗：" + e.getMessage());
+        }
+    }
+
+    private void exportLongImage() {
+        DocumentItem latest = getLatestOrToast();
+        if (latest == null) {
+            return;
+        }
+
+        try {
+            List<Bitmap> pages = renderPdfPages(latest.pdfUri, 900, 8);
+            if (pages.isEmpty()) {
+                showToast("沒有可轉換的頁面");
+                return;
+            }
+
+            int spacing = 20;
+            int totalHeight = 0;
+            for (Bitmap page : pages) {
+                totalHeight += page.getHeight() + spacing;
+            }
+
+            Bitmap longImage = Bitmap.createBitmap(900, Math.max(1, totalHeight), Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(longImage);
+            canvas.drawColor(Color.WHITE);
+            int top = 0;
+            for (Bitmap page : pages) {
+                canvas.drawBitmap(page, 0, top, null);
+                top += page.getHeight() + spacing;
+            }
+
+            Uri uri = saveBitmapAsPng(longImage, "long_image", "LongImage");
+            showToast(uri == null ? "轉長圖失敗" : "已輸出長圖片");
+        } catch (Exception e) {
+            showToast("轉長圖失敗：" + e.getMessage());
+        }
+    }
+
+    private DocumentItem getLatestOrToast() {
+        DocumentItem latest = DocumentStore.getLatestPdf();
+        if (latest == null || latest.pdfUri == null) {
+            showToast("請先儲存或導入 PDF");
+            return null;
+        }
+        return latest;
+    }
+
+    private List<Bitmap> renderPdfPages(Uri uri, int targetWidth, int maxPages) throws Exception {
+        ArrayList<Bitmap> pages = new ArrayList<>();
+        ParcelFileDescriptor descriptor = getContentResolver().openFileDescriptor(uri, "r");
+        if (descriptor == null) {
+            throw new RuntimeException("Cannot open PDF");
+        }
+
+        PdfRenderer renderer = new PdfRenderer(descriptor);
+        try {
+            int count = Math.min(renderer.getPageCount(), maxPages);
+            for (int i = 0; i < count; i++) {
+                PdfRenderer.Page page = renderer.openPage(i);
+                int width = targetWidth;
+                int height = Math.max(1, page.getHeight() * width / page.getWidth());
+                Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+                bitmap.eraseColor(Color.WHITE);
+                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+                page.close();
+                pages.add(bitmap);
+            }
+        } finally {
+            renderer.close();
+            descriptor.close();
+        }
+        return pages;
+    }
+
+    private Uri createPdfFromBitmaps(String suffix, List<Bitmap> pages) {
+        if (pages == null || pages.isEmpty()) {
+            return null;
+        }
+
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String pdfName = "ScanMate_" + suffix + "_" + timestamp + ".pdf";
+        File dir = new File(getExternalFilesDir(null), "ScanMatePDF");
+        if (!dir.exists() && !dir.mkdirs()) {
+            return null;
+        }
+
+        File pdfFile = new File(dir, pdfName);
+        PdfDocument pdfDocument = new PdfDocument();
+        try (FileOutputStream outputStream = new FileOutputStream(pdfFile)) {
+            int pageWidth = 595;
+            int pageHeight = 842;
+            for (int i = 0; i < pages.size(); i++) {
+                Bitmap bitmap = pages.get(i);
+                PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(pageWidth, pageHeight, i + 1).create();
+                PdfDocument.Page page = pdfDocument.startPage(pageInfo);
+                Canvas canvas = page.getCanvas();
+                canvas.drawColor(Color.WHITE);
+                float scale = Math.min((float) pageWidth / bitmap.getWidth(), (float) pageHeight / bitmap.getHeight());
+                float left = (pageWidth - bitmap.getWidth() * scale) / 2f;
+                float top = (pageHeight - bitmap.getHeight() * scale) / 2f;
+                canvas.save();
+                canvas.translate(left, top);
+                canvas.scale(scale, scale);
+                canvas.drawBitmap(bitmap, 0, 0, null);
+                canvas.restore();
+                pdfDocument.finishPage(page);
+            }
+            pdfDocument.writeTo(outputStream);
+            outputStream.flush();
+
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", pdfFile);
+            DocumentStore.add(new DocumentItem(pdfName, formatDisplayTime(System.currentTimeMillis()), pages.size(), uri, "PDF"));
+            renderStatus();
+            return uri;
+        } catch (Exception ignored) {
+            return null;
+        } finally {
+            pdfDocument.close();
+        }
+    }
+
+    private Uri saveBitmapAsPng(Bitmap bitmap, String suffix, String type) {
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String fileName = "ScanMate_" + suffix + "_" + timestamp + ".png";
+        File dir = new File(getExternalFilesDir(null), "ScanMateImages");
+        if (!dir.exists() && !dir.mkdirs()) {
+            return null;
+        }
+
+        File outputFile = new File(dir, fileName);
+        try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+            outputStream.flush();
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", outputFile);
+            DocumentStore.add(new DocumentItem(fileName, formatDisplayTime(System.currentTimeMillis()), 1, uri, type));
+            renderStatus();
+            return uri;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
