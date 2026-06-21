@@ -491,14 +491,14 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void toggleFlashState() {
         flashOff = !flashOff;
         btnFlash.setText(flashOff ? "閃光關" : "閃光開");
-        showHint(flashOff ? "閃光燈已關閉" : "拍攝時會嘗試自動閃光");
+        showModeHint(flashOff ? "閃光燈已關閉" : "拍攝時會嘗試自動閃光");
     }
 
     private void toggleHdState() {
         hdEnabled = !hdEnabled;
         btnHd.setText(hdEnabled ? "HD" : "SD");
         btnHd.setTextColor(hdEnabled ? Color.WHITE : Color.parseColor("#A8ABB2"));
-        showHint(hdEnabled ? "高畫質掃描已開啟" : "快速掃描模式");
+        showModeHint(hdEnabled ? "高畫質掃描已開啟" : "快速掃描模式");
     }
 
     private void setContinuousMode(boolean enabled) {
@@ -511,7 +511,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
             highlightMode(btnModeSingle);
         }
         btnCaptureDone.setVisibility(ScanDraftStore.getPageCount() > 0 ? View.VISIBLE : View.GONE);
-        showHint(enabled ? "連續拍攝模式：每次快門會加入一頁" : "單張拍攝模式");
+        showModeHint(enabled ? "連續拍攝模式：每次快門會加入一頁" : "單張拍攝模式");
     }
 
     private void setCaptureWorkflowMode(String mode, String hint) {
@@ -529,7 +529,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
             highlightMode(btnModeSingle);
         }
         btnCaptureDone.setVisibility(View.GONE);
-        showHint(hint);
+        showModeHint(hint);
     }
 
     private void highlightMode(TextView activeButton) {
@@ -710,6 +710,19 @@ public class CameraCaptureActivity extends AppCompatActivity {
             txtCaptureHint.setVisibility(View.VISIBLE);
             txtCaptureHint.setText(text);
             Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void showModeHint(String text) {
+        runOnUiThread(() -> {
+            if (previewReady) {
+                txtCaptureHint.setVisibility(View.GONE);
+                Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+            } else {
+                txtCaptureHint.setVisibility(View.VISIBLE);
+                txtCaptureHint.setText(text);
+                Toast.makeText(this, text, Toast.LENGTH_SHORT).show();
+            }
         });
     }
 }

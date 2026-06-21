@@ -20,6 +20,10 @@ public class CropOverlayView extends View {
 
     private static final int MOVE_NONE = -2;
     private static final int MOVE_POLYGON = -1;
+    private static final int MOVE_TOP = 4;
+    private static final int MOVE_RIGHT = 5;
+    private static final int MOVE_BOTTOM = 6;
+    private static final int MOVE_LEFT = 7;
     private static final int POINT_COUNT = 4;
 
     private final Paint shadePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -37,6 +41,9 @@ public class CropOverlayView extends View {
     private int activePoint = MOVE_NONE;
     private float handleRadius;
     private float touchRadius;
+    private float edgeHandleHalfWidth;
+    private float edgeHandleHalfHeight;
+    private float minEdgeDistance;
     private float lastTouchX;
     private float lastTouchY;
     private boolean boundsReady = false;
@@ -66,6 +73,9 @@ public class CropOverlayView extends View {
 
         handleRadius = dp(13);
         touchRadius = dp(34);
+        edgeHandleHalfWidth = dp(22);
+        edgeHandleHalfHeight = dp(7);
+        minEdgeDistance = dp(54);
 
         shadePaint.setColor(Color.argb(150, 0, 0, 0));
         shadePaint.setStyle(Paint.Style.FILL);
@@ -201,6 +211,10 @@ public class CropOverlayView extends View {
             canvas.drawCircle(point.x, point.y, handleRadius, handleFillPaint);
             canvas.drawCircle(point.x, point.y, handleRadius, handleStrokePaint);
         }
+        drawEdgeHandle(canvas, (points[0].x + points[1].x) / 2f, (points[0].y + points[1].y) / 2f, true);
+        drawEdgeHandle(canvas, (points[1].x + points[2].x) / 2f, (points[1].y + points[2].y) / 2f, false);
+        drawEdgeHandle(canvas, (points[2].x + points[3].x) / 2f, (points[2].y + points[3].y) / 2f, true);
+        drawEdgeHandle(canvas, (points[3].x + points[0].x) / 2f, (points[3].y + points[0].y) / 2f, false);
     }
 
     @Override
@@ -228,6 +242,8 @@ public class CropOverlayView extends View {
                 float dy = y - lastTouchY;
                 if (activePoint == MOVE_POLYGON) {
                     movePolygon(dx, dy);
+                } else if (activePoint >= MOVE_TOP && activePoint <= MOVE_LEFT) {
+                    moveEdge(activePoint, dx, dy);
                 } else if (activePoint >= 0 && activePoint < POINT_COUNT) {
                     points[activePoint].x = clampFloat(points[activePoint].x + dx, imageBounds.left, imageBounds.right);
                     points[activePoint].y = clampFloat(points[activePoint].y + dy, imageBounds.top, imageBounds.bottom);
@@ -256,10 +272,71 @@ public class CropOverlayView extends View {
                 return i;
             }
         }
+        if (isNearEdgeHandle(x, y, (points[0].x + points[1].x) / 2f, (points[0].y + points[1].y) / 2f, true)) {
+            return MOVE_TOP;
+        }
+        if (isNearEdgeHandle(x, y, (points[1].x + points[2].x) / 2f, (points[1].y + points[2].y) / 2f, false)) {
+            return MOVE_RIGHT;
+        }
+        if (isNearEdgeHandle(x, y, (points[2].x + points[3].x) / 2f, (points[2].y + points[3].y) / 2f, true)) {
+            return MOVE_BOTTOM;
+        }
+        if (isNearEdgeHandle(x, y, (points[3].x + points[0].x) / 2f, (points[3].y + points[0].y) / 2f, false)) {
+            return MOVE_LEFT;
+        }
         if (isInsidePolygon(x, y)) {
             return MOVE_POLYGON;
         }
         return MOVE_NONE;
+    }
+
+    private void drawEdgeHandle(Canvas canvas, float centerX, float centerY, boolean horizontal) {
+        float halfWidth = horizontal ? edgeHandleHalfWidth : edgeHandleHalfHeight;
+        float halfHeight = horizontal ? edgeHandleHalfHeight : edgeHandleHalfWidth;
+        RectF rect = new RectF(centerX - halfWidth, centerY - halfHeight, centerX + halfWidth, centerY + halfHeight);
+        canvas.drawRoundRect(rect, halfHeight, halfHeight, handleFillPaint);
+        canvas.drawRoundRect(rect, halfHeight, halfHeight, handleStrokePaint);
+    }
+
+    private boolean isNearEdgeHandle(float x, float y, float centerX, float centerY, boolean horizontal) {
+        float halfWidth = horizontal ? touchRadius : edgeHandleHalfWidth;
+        float halfHeight = horizontal ? edgeHandleHalfWidth : touchRadius;
+        return x >= centerX - halfWidth
+                && x <= centerX + halfWidth
+                && y >= centerY - halfHeight
+                && y <= centerY + halfHeight;
+    }
+
+    private void moveEdge(int edge, float dx, float dy) {
+        if (edge == MOVE_TOP) {
+            float minY = imageBounds.top;
+            float maxY = Math.min(points[2].y, points[3].y) - minEdgeDistance;
+            float newY0 = clampFloat(points[0].y + dy, minY, maxY);
+            float newY1 = clampFloat(points[1].y + dy, minY, maxY);
+            points[0].y = newY0;
+            points[1].y = newY1;
+        } else if (edge == MOVE_RIGHT) {
+            float minX = Math.max(points[0].x, points[3].x) + minEdgeDistance;
+            float maxX = imageBounds.right;
+            float newX1 = clampFloat(points[1].x + dx, minX, maxX);
+            float newX2 = clampFloat(points[2].x + dx, minX, maxX);
+            points[1].x = newX1;
+            points[2].x = newX2;
+        } else if (edge == MOVE_BOTTOM) {
+            float minY = Math.max(points[0].y, points[1].y) + minEdgeDistance;
+            float maxY = imageBounds.bottom;
+            float newY2 = clampFloat(points[2].y + dy, minY, maxY);
+            float newY3 = clampFloat(points[3].y + dy, minY, maxY);
+            points[2].y = newY2;
+            points[3].y = newY3;
+        } else if (edge == MOVE_LEFT) {
+            float minX = imageBounds.left;
+            float maxX = Math.min(points[1].x, points[2].x) - minEdgeDistance;
+            float newX0 = clampFloat(points[0].x + dx, minX, maxX);
+            float newX3 = clampFloat(points[3].x + dx, minX, maxX);
+            points[0].x = newX0;
+            points[3].x = newX3;
+        }
     }
 
     private boolean isInsidePolygon(float x, float y) {

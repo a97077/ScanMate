@@ -10,10 +10,10 @@ public class DocumentItem {
     public final String type;
 
     public DocumentItem(String title, String dateTime, int pageCount, Uri pdfUri, String type) {
-        this.title = title;
-        this.dateTime = dateTime;
-        this.pageCount = pageCount;
+        this.title = title == null || title.trim().isEmpty() ? "Untitled" : title;
+        this.dateTime = dateTime == null || dateTime.trim().isEmpty() ? "-" : dateTime;
+        this.pageCount = Math.max(1, pageCount);
         this.pdfUri = pdfUri;
-        this.type = type;
+        this.type = type == null || type.trim().isEmpty() ? "PDF" : type;
     }
 }

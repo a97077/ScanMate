@@ -79,9 +79,11 @@ public class PdfToolsActivity extends AppCompatActivity {
         txtPdfToolsStatus = findViewById(R.id.txtPdfToolsStatus);
 
         findViewById(R.id.btnPdfBack).setOnClickListener(v -> finish());
-        findViewById(R.id.btnPdfScan).setOnClickListener(v ->
-                startActivity(new Intent(this, CameraCaptureActivity.class))
-        );
+        findViewById(R.id.btnPdfScan).setOnClickListener(v -> {
+            Intent intent = new Intent(this, CameraCaptureActivity.class);
+            intent.putExtra("capture_mode", "scan");
+            startActivity(intent);
+        });
         findViewById(R.id.btnPdfImport).setOnClickListener(v ->
                 importDocumentLauncher.launch(new String[]{"application/pdf"})
         );
