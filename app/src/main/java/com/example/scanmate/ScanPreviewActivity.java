@@ -36,6 +36,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
     private TextView txtPreviewPage;
     private LinearLayout layoutPreviewThumbnails;
     private int currentPageIndex = 0;
+    private boolean isFinishingDocument = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +64,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
         View btnTitleEdit = findViewById(R.id.btnPreviewTitleEdit);
         View btnGrid = findViewById(R.id.btnPreviewGrid);
         View btnMore = findViewById(R.id.btnPreviewMore);
+        View btnDone = findViewById(R.id.btnPreviewDone);
         View btnContinueAdd = findViewById(R.id.btnPreviewContinueAdd);
         View btnAdd = findViewById(R.id.btnPreviewAdd);
         View btnEdit = findViewById(R.id.btnPreviewEdit);
@@ -74,6 +76,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
         btnTitleEdit.setOnClickListener(v -> showRenameDialog());
         btnGrid.setOnClickListener(v -> showPageActions());
         btnMore.setOnClickListener(v -> showMoreActions());
+        btnDone.setOnClickListener(v -> finishDocument());
         btnContinueAdd.setOnClickListener(v -> openCaptureForAppend());
         btnAdd.setOnClickListener(v -> openCaptureForAppend());
         btnEdit.setOnClickListener(v -> editLatestPage());
@@ -82,6 +85,28 @@ public class ScanPreviewActivity extends AppCompatActivity {
         btnSignature.setOnClickListener(v -> signCurrentPage());
 
         renderPreview();
+    }
+
+    private void finishDocument() {
+        if (isFinishingDocument) {
+            return;
+        }
+
+        isFinishingDocument = true;
+        Uri pdfUri = createLocalPdf();
+        if (pdfUri == null) {
+            isFinishingDocument = false;
+            return;
+        }
+
+        Toast.makeText(this, "文件已完成並儲存到最近文檔", Toast.LENGTH_SHORT).show();
+        ScanDraftStore.clear();
+        ScanDraftStore.clearPersistedDraft(this);
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        startActivity(intent);
+        finish();
     }
 
     @Override
