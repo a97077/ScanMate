@@ -47,7 +47,7 @@ public class TextExtractActivity extends AppCompatActivity {
                     new ActivityResultContracts.GetContent(),
                     uri -> {
                         if (uri != null) {
-                            processImage(uri);
+                            processImage(uri, false);
                         }
                     }
             );
@@ -57,7 +57,7 @@ public class TextExtractActivity extends AppCompatActivity {
                     new ActivityResultContracts.TakePicture(),
                     success -> {
                         if (success && pendingCameraUri != null) {
-                            processImage(pendingCameraUri);
+                            processImage(pendingCameraUri, true);
                         } else {
                             Toast.makeText(this, "未取得拍照影像", Toast.LENGTH_SHORT).show();
                         }
@@ -110,9 +110,9 @@ public class TextExtractActivity extends AppCompatActivity {
         }
     }
 
-    private void processImage(Uri uri) {
+    private void processImage(Uri uri, boolean forcePortrait) {
         try {
-            processImageBytes(readBytesFromUri(uri));
+            processImageBytes(readNormalizedImageBytes(uri, forcePortrait));
         } catch (Exception e) {
             txtTextReport.setText("文字提取預處理失敗：\n" + e.getMessage());
             Toast.makeText(this, "處理失敗", Toast.LENGTH_SHORT).show();
@@ -248,5 +248,24 @@ public class TextExtractActivity extends AppCompatActivity {
             }
             return buffer.toByteArray();
         }
+    }
+
+    private byte[] readNormalizedImageBytes(Uri uri, boolean forcePortrait) throws Exception {
+        byte[] rawBytes = readBytesFromUri(uri);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+        Bitmap normalized = BitmapOrientationHelper.applyExifAndPortrait(
+                getContentResolver(),
+                uri,
+                bitmap,
+                forcePortrait
+        );
+
+        if (normalized == null) {
+            return rawBytes;
+        }
+
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        normalized.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+        return outputStream.toByteArray();
     }
 }
