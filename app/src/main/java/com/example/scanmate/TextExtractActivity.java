@@ -12,6 +12,7 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
@@ -23,6 +24,7 @@ import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +38,7 @@ public class TextExtractActivity extends AppCompatActivity {
     private TextView txtTextReport;
     private Python py;
     private String pendingOcrText = "";
+    private Uri pendingCameraUri;
 
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(
@@ -43,6 +46,18 @@ public class TextExtractActivity extends AppCompatActivity {
                     uri -> {
                         if (uri != null) {
                             processImage(uri);
+                        }
+                    }
+            );
+
+    private final ActivityResultLauncher<Uri> captureImageLauncher =
+            registerForActivityResult(
+                    new ActivityResultContracts.TakePicture(),
+                    success -> {
+                        if (success && pendingCameraUri != null) {
+                            processImage(pendingCameraUri);
+                        } else {
+                            Toast.makeText(this, "未取得拍照影像", Toast.LENGTH_SHORT).show();
                         }
                     }
             );
@@ -65,6 +80,7 @@ public class TextExtractActivity extends AppCompatActivity {
         imgTextPreview = findViewById(R.id.imgTextPreview);
         txtTextReport = findViewById(R.id.txtTextReport);
         Button btnSelectTextImage = findViewById(R.id.btnSelectTextImage);
+        Button btnCaptureTextImage = findViewById(R.id.btnCaptureTextImage);
         Button btnExportOcrText = findViewById(R.id.btnExportOcrText);
 
         if (!Python.isStarted()) {
@@ -74,6 +90,7 @@ public class TextExtractActivity extends AppCompatActivity {
 
         findViewById(R.id.btnTextBack).setOnClickListener(v -> finish());
         btnSelectTextImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+        btnCaptureTextImage.setOnClickListener(v -> launchTextCamera());
         btnExportOcrText.setOnClickListener(v -> {
             if (pendingOcrText == null || pendingOcrText.trim().isEmpty()) {
                 Toast.makeText(this, "尚無可匯出的辨識文字", Toast.LENGTH_SHORT).show();
@@ -95,6 +112,20 @@ public class TextExtractActivity extends AppCompatActivity {
         } catch (Exception e) {
             txtTextReport.setText("文字提取預處理失敗：\n" + e.getMessage());
             Toast.makeText(this, "處理失敗", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void launchTextCamera() {
+        try {
+            File photoFile = new File(getCacheDir(), "scanmate_ocr_" + System.currentTimeMillis() + ".jpg");
+            pendingCameraUri = FileProvider.getUriForFile(
+                    this,
+                    getPackageName() + ".fileprovider",
+                    photoFile
+            );
+            captureImageLauncher.launch(pendingCameraUri);
+        } catch (Exception e) {
+            Toast.makeText(this, "無法開啟相機：" + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 

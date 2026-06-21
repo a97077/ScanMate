@@ -153,7 +153,7 @@ public class CropActivity extends AppCompatActivity {
         new Thread(() -> {
             Bitmap outputBitmap;
             if (autoCorrectDocument) {
-                outputBitmap = runPerspectiveCorrection(workingBitmap, cropPoints, true);
+                outputBitmap = runPerspectiveCorrection(workingBitmap, cropPoints, false);
                 if (outputBitmap == null) {
                     outputBitmap = cropWorkingBitmap();
                 }
@@ -174,6 +174,7 @@ public class CropActivity extends AppCompatActivity {
                 isProcessing = false;
                 ScanDraftStore.start(sourceUri, finalBitmap, documentTitle);
                 Intent intent = new Intent(this, ScanEditActivity.class);
+                intent.putExtra("capture_mode", captureMode);
                 startActivity(intent);
             });
         }).start();

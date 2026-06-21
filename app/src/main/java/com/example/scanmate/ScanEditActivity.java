@@ -29,6 +29,7 @@ public class ScanEditActivity extends AppCompatActivity {
     private final List<TextView> filterButtons = new ArrayList<>();
     private Bitmap originalBitmap;
     private Bitmap currentBitmap;
+    private String captureMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +44,7 @@ public class ScanEditActivity extends AppCompatActivity {
 
         originalBitmap = ScanDraftStore.getCurrentBitmap();
         currentBitmap = originalBitmap;
+        captureMode = getIntent().getStringExtra("capture_mode");
 
         imgEditPreview = findViewById(R.id.imgEditPreview);
         txtEditTitle = findViewById(R.id.txtEditTitle);
@@ -82,6 +84,7 @@ public class ScanEditActivity extends AppCompatActivity {
         filterShadow.setOnClickListener(v -> applyFilter("shadow", filterShadow));
 
         markSelected(filterOriginal);
+        applyCaptureModeHint(filterShadow);
     }
 
     private void applyFilter(String type, TextView selected) {
@@ -171,7 +174,22 @@ public class ScanEditActivity extends AppCompatActivity {
         ScanDraftStore.setCurrentBitmap(currentBitmap);
         ScanDraftStore.commitCurrentPage();
         ScanDraftStore.saveDraft(this);
-        startActivity(new Intent(this, ScanPreviewActivity.class));
+        if ("word".equals(captureMode)) {
+            startActivity(new Intent(this, TextExtractActivity.class));
+        } else {
+            startActivity(new Intent(this, ScanPreviewActivity.class));
+        }
+    }
+
+    private void applyCaptureModeHint(TextView filterShadow) {
+        if ("word".equals(captureMode)) {
+            Toast.makeText(this, "拍圖轉 Word 模式：確認後會進入 OCR 文字辨識", Toast.LENGTH_SHORT).show();
+        } else if ("signature".equals(captureMode)) {
+            Toast.makeText(this, "電子簽名模式：可點選底部電子簽名加入簽章", Toast.LENGTH_SHORT).show();
+        } else if ("erase".equals(captureMode)) {
+            applyFilter("shadow", filterShadow);
+            Toast.makeText(this, "AI 擦除模式：已先套用去陰影清理", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void addAnnotation() {

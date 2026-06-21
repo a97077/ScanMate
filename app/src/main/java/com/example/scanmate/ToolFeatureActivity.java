@@ -18,12 +18,14 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -43,15 +45,26 @@ public class ToolFeatureActivity extends AppCompatActivity {
     private TextView txtFeatureReport;
     private ImageView imgFeaturePreview;
     private Button btnSelectImage;
+    private Button btnCaptureImage;
     private Button btnSelectPdf;
     private Button btnExport;
     private Python py;
     private String pendingText;
     private Bitmap pendingBitmap;
+    private Uri pendingCameraUri;
 
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) processImage(uri);
+            });
+
+    private final ActivityResultLauncher<Uri> captureImageLauncher =
+            registerForActivityResult(new ActivityResultContracts.TakePicture(), success -> {
+                if (success && pendingCameraUri != null) {
+                    processImage(pendingCameraUri);
+                } else {
+                    Toast.makeText(this, "未取得拍照影像", Toast.LENGTH_SHORT).show();
+                }
             });
 
     private final ActivityResultLauncher<String[]> pickPdfLauncher =
@@ -85,6 +98,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
         txtFeatureReport = findViewById(R.id.txtFeatureReport);
         imgFeaturePreview = findViewById(R.id.imgFeaturePreview);
         btnSelectImage = findViewById(R.id.btnToolSelectImage);
+        btnCaptureImage = findViewById(R.id.btnToolCaptureImage);
         btnSelectPdf = findViewById(R.id.btnToolSelectPdf);
         btnExport = findViewById(R.id.btnToolExport);
 
@@ -95,6 +109,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
 
         findViewById(R.id.btnToolBack).setOnClickListener(v -> finish());
         btnSelectImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+        btnCaptureImage.setOnClickListener(v -> launchToolCamera());
         btnSelectPdf.setOnClickListener(v -> pickPdfLauncher.launch(new String[]{"application/pdf"}));
         btnExport.setOnClickListener(v -> exportCurrentResult());
 
@@ -110,6 +125,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
         boolean exportFeature = isExportFeature();
 
         btnSelectImage.setVisibility(imageFeature ? View.VISIBLE : View.GONE);
+        btnCaptureImage.setVisibility(imageFeature ? View.VISIBLE : View.GONE);
         btnSelectPdf.setVisibility(pdfFeature ? View.VISIBLE : View.GONE);
         btnExport.setVisibility((exportFeature || pdfFeature) ? View.VISIBLE : View.GONE);
 
@@ -185,6 +201,20 @@ public class ToolFeatureActivity extends AppCompatActivity {
             btnExport.setText("匯出 PNG");
         } catch (Exception e) {
             txtFeatureReport.setText("處理失敗：\n" + e.getMessage());
+        }
+    }
+
+    private void launchToolCamera() {
+        try {
+            File photoFile = new File(getCacheDir(), "scanmate_tool_" + System.currentTimeMillis() + ".jpg");
+            pendingCameraUri = FileProvider.getUriForFile(
+                    this,
+                    getPackageName() + ".fileprovider",
+                    photoFile
+            );
+            captureImageLauncher.launch(pendingCameraUri);
+        } catch (Exception e) {
+            Toast.makeText(this, "無法開啟相機：" + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
