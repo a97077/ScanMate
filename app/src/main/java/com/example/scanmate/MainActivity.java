@@ -52,7 +52,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final ActivityResultLauncher<String> copyDocumentLauncher =
             registerForActivityResult(
-                    new ActivityResultContracts.CreateDocument("application/pdf"),
+                    new ActivityResultContracts.CreateDocument("*/*"),
                     uri -> {
                         if (uri != null && pendingCopyDocument != null) {
                             copyPdfToUri(pendingCopyDocument, uri);
@@ -173,11 +173,11 @@ public class MainActivity extends AppCompatActivity {
 
             TextView iconView = new TextView(this);
             iconView.setGravity(Gravity.CENTER);
-            iconView.setText("P");
+            iconView.setText(iconTextFor(document));
             iconView.setTextColor(Color.WHITE);
             iconView.setTextSize(30);
             iconView.setTypeface(Typeface.DEFAULT_BOLD);
-            iconView.setBackground(rounded(Color.parseColor("#F28B2D"), dp(8)));
+            iconView.setBackground(rounded(iconColorFor(document), dp(8)));
 
             LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(72), dp(72));
             iconParams.setMargins(0, 0, dp(14), 0);
@@ -195,7 +195,7 @@ public class MainActivity extends AppCompatActivity {
             titleView.setSingleLine(true);
 
             TextView metaView = new TextView(this);
-            metaView.setText(document.dateTime + "  |  " + document.pageCount + " 頁");
+            metaView.setText(document.dateTime + "  |  " + document.pageCount + " 頁  |  " + document.type);
             metaView.setTextColor(Color.parseColor("#9EA2AA"));
             metaView.setTextSize(14);
             metaView.setPadding(0, dp(4), 0, 0);
@@ -217,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
             Button shareButton = actionButton("分享");
             shareButton.setOnClickListener(v -> shareDocument(document));
 
-            Button saveButton = actionButton("另存為PDF");
+            Button saveButton = actionButton("另存");
             saveButton.setOnClickListener(v -> copyDocument(document));
 
             Button openButton = actionButton("查看");
@@ -249,6 +249,32 @@ public class MainActivity extends AppCompatActivity {
         return document.title.toLowerCase(Locale.ROOT).contains(recentQuery)
                 || document.dateTime.toLowerCase(Locale.ROOT).contains(recentQuery)
                 || document.type.toLowerCase(Locale.ROOT).contains(recentQuery);
+    }
+
+    private String iconTextFor(DocumentItem document) {
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            return "圖";
+        }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return "T";
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return "X";
+        }
+        return "P";
+    }
+
+    private int iconColorFor(DocumentItem document) {
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#3D6FD8");
+        }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#2E9F89");
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#3C9345");
+        }
+        return Color.parseColor("#F28B2D");
     }
 
     private Button actionButton(String text) {
@@ -312,6 +338,12 @@ public class MainActivity extends AppCompatActivity {
         if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
             return "image/png";
         }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return "text/plain";
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return "text/csv";
+        }
         return "application/pdf";
     }
 
@@ -329,15 +361,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void copyDocument(DocumentItem document) {
         if (document.pdfUri == null) {
-            showStatus("找不到可另存的 PDF");
+            showStatus("找不到可另存的文件");
             return;
         }
 
         pendingCopyDocument = document;
-        String fileName = document.title.endsWith(".pdf")
-                ? document.title.replace(".pdf", "_copy.pdf")
-                : document.title + "_copy.pdf";
-        copyDocumentLauncher.launch(fileName);
+        copyDocumentLauncher.launch(copyFileName(document));
     }
 
     private void copyPdfToUri(DocumentItem sourceDocument, Uri targetUri) {
@@ -356,14 +385,34 @@ public class MainActivity extends AppCompatActivity {
 
             String title = resolveDisplayName(targetUri, sourceDocument.title);
             String dateTime = formatDisplayTime(System.currentTimeMillis());
-            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, "PDF"));
+            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, sourceDocument.type));
             renderRecentDocuments();
-            showStatus("已另存為 PDF：" + title);
+            showStatus("已另存文件：" + title);
         } catch (Exception e) {
-            showStatus("另存 PDF 失敗：" + e.getMessage());
+            showStatus("另存失敗：" + e.getMessage());
         } finally {
             pendingCopyDocument = null;
         }
+    }
+
+    private String copyFileName(DocumentItem document) {
+        String title = document.title == null || document.title.trim().isEmpty()
+                ? "ScanMate_file"
+                : document.title.trim();
+        int dot = title.lastIndexOf('.');
+        if (dot > 0) {
+            return title.substring(0, dot) + "_copy" + title.substring(dot);
+        }
+
+        String extension = ".pdf";
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            extension = ".png";
+        } else if ("TXT".equalsIgnoreCase(document.type)) {
+            extension = ".txt";
+        } else if ("CSV".equalsIgnoreCase(document.type)) {
+            extension = ".csv";
+        }
+        return title + "_copy" + extension;
     }
 
     private void persistReadPermission(Uri uri) {

@@ -52,7 +52,7 @@ public class DocumentsActivity extends AppCompatActivity {
 
     private final ActivityResultLauncher<String> copyDocumentLauncher =
             registerForActivityResult(
-                    new ActivityResultContracts.CreateDocument("application/pdf"),
+                    new ActivityResultContracts.CreateDocument("*/*"),
                     uri -> {
                         if (uri != null && pendingCopyDocument != null) {
                             copyPdfToUri(pendingCopyDocument, uri);
@@ -158,12 +158,12 @@ public class DocumentsActivity extends AppCompatActivity {
         row.setOrientation(LinearLayout.HORIZONTAL);
 
         TextView icon = new TextView(this);
-        icon.setText("P");
+        icon.setText(iconTextFor(document));
         icon.setTextColor(Color.WHITE);
         icon.setTextSize(28);
         icon.setTypeface(Typeface.DEFAULT_BOLD);
         icon.setGravity(Gravity.CENTER);
-        icon.setBackground(rounded(Color.parseColor("#F28B2D"), dp(8)));
+        icon.setBackground(rounded(iconColorFor(document), dp(8)));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(64), dp(64));
         iconParams.setMargins(0, 0, dp(14), 0);
         row.addView(icon, iconParams);
@@ -225,6 +225,32 @@ public class DocumentsActivity extends AppCompatActivity {
         return button;
     }
 
+    private String iconTextFor(DocumentItem document) {
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            return "圖";
+        }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return "T";
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return "X";
+        }
+        return "P";
+    }
+
+    private int iconColorFor(DocumentItem document) {
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#3D6FD8");
+        }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#2E9F89");
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return Color.parseColor("#3C9345");
+        }
+        return Color.parseColor("#F28B2D");
+    }
+
     private LinearLayout.LayoutParams actionLayoutParams(boolean hasRightMargin) {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(46), 1);
         if (hasRightMargin) {
@@ -247,15 +273,12 @@ public class DocumentsActivity extends AppCompatActivity {
 
     private void copyDocument(DocumentItem document) {
         if (document.pdfUri == null) {
-            showToast("找不到可另存的 PDF");
+            showToast("找不到可另存的文件");
             return;
         }
 
         pendingCopyDocument = document;
-        String fileName = document.title.endsWith(".pdf")
-                ? document.title.replace(".pdf", "_copy.pdf")
-                : document.title + "_copy.pdf";
-        copyDocumentLauncher.launch(fileName);
+        copyDocumentLauncher.launch(copyFileName(document));
     }
 
     private void copyPdfToUri(DocumentItem sourceDocument, Uri targetUri) {
@@ -274,14 +297,34 @@ public class DocumentsActivity extends AppCompatActivity {
 
             String title = resolveDisplayName(targetUri, sourceDocument.title);
             String dateTime = formatDisplayTime(System.currentTimeMillis());
-            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, "PDF"));
+            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, sourceDocument.type));
             renderDocuments();
-            showToast("已另存為 PDF：" + title);
+            showToast("已另存文件：" + title);
         } catch (Exception e) {
-            showToast("另存 PDF 失敗：" + e.getMessage());
+            showToast("另存失敗：" + e.getMessage());
         } finally {
             pendingCopyDocument = null;
         }
+    }
+
+    private String copyFileName(DocumentItem document) {
+        String title = document.title == null || document.title.trim().isEmpty()
+                ? "ScanMate_file"
+                : document.title.trim();
+        int dot = title.lastIndexOf('.');
+        if (dot > 0) {
+            return title.substring(0, dot) + "_copy" + title.substring(dot);
+        }
+
+        String extension = ".pdf";
+        if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
+            extension = ".png";
+        } else if ("TXT".equalsIgnoreCase(document.type)) {
+            extension = ".txt";
+        } else if ("CSV".equalsIgnoreCase(document.type)) {
+            extension = ".csv";
+        }
+        return title + "_copy" + extension;
     }
 
     private void openDocument(DocumentItem document) {
@@ -322,6 +365,12 @@ public class DocumentsActivity extends AppCompatActivity {
     private String mimeTypeFor(DocumentItem document) {
         if ("PNG".equalsIgnoreCase(document.type) || "LongImage".equalsIgnoreCase(document.type)) {
             return "image/png";
+        }
+        if ("TXT".equalsIgnoreCase(document.type)) {
+            return "text/plain";
+        }
+        if ("CSV".equalsIgnoreCase(document.type)) {
+            return "text/csv";
         }
         return "application/pdf";
     }

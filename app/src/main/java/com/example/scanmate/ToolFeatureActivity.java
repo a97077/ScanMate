@@ -6,9 +6,11 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.pdf.PdfRenderer;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
+import android.provider.OpenableColumns;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -51,6 +53,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
     private Python py;
     private String pendingText;
     private Bitmap pendingBitmap;
+    private String pendingExportType;
     private Uri pendingCameraUri;
 
     private final ActivityResultLauncher<String> pickImageLauncher =
@@ -131,6 +134,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
 
         if (exportFeature) {
             pendingText = buildExportContent();
+            pendingExportType = exportDocumentType();
             btnExport.setText("匯出結果");
             txtFeatureReport.setText(featureDescription() + "\n\n已準備好匯出內容。");
         }
@@ -195,6 +199,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
             byte[] outPng = result.toJava(byte[].class);
             Bitmap preview = BitmapFactory.decodeByteArray(outPng, 0, outPng.length);
             pendingBitmap = preview;
+            pendingExportType = "PNG";
             imgFeaturePreview.setImageBitmap(preview);
             txtFeatureReport.setText(featureDescription() + "\n\n處理完成，可匯出 PNG 預覽。");
             btnExport.setVisibility(View.VISIBLE);
@@ -257,6 +262,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
             }
 
             imgFeaturePreview.setImageBitmap(pendingBitmap);
+            pendingExportType = "PNG";
             btnExport.setVisibility(View.VISIBLE);
             btnExport.setText("匯出 PNG");
             txtFeatureReport.setText(featureDescription() + "\n\nPDF 頁數：" + pageCount + "\n預覽已產生。");
@@ -411,6 +417,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
             if (outputStream == null) throw new RuntimeException("Cannot open output stream");
             outputStream.write(pendingText.getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
+            recordExportedDocument(uri, defaultFileName(exportExtension()), 1, pendingExportType == null ? "TXT" : pendingExportType);
             Toast.makeText(this, "已匯出", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             txtFeatureReport.setText("匯出失敗：\n" + e.getMessage());
@@ -422,10 +429,46 @@ public class ToolFeatureActivity extends AppCompatActivity {
             if (outputStream == null) throw new RuntimeException("Cannot open output stream");
             pendingBitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
             outputStream.flush();
+            recordExportedDocument(uri, defaultFileName(".png"), 1, pendingExportType == null ? "PNG" : pendingExportType);
             Toast.makeText(this, "已匯出 PNG", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             txtFeatureReport.setText("匯出 PNG 失敗：\n" + e.getMessage());
         }
+    }
+
+    private String exportDocumentType() {
+        if (featureType.equals("excel")) return "CSV";
+        if (featureType.equals("ppt")) return "TXT";
+        if (featureType.equals("word")) return "TXT";
+        return "TXT";
+    }
+
+    private void recordExportedDocument(Uri uri, String fallbackName, int pageCount, String type) {
+        String title = resolveDisplayName(uri, fallbackName);
+        String dateTime = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(new Date());
+        DocumentStore.add(new DocumentItem(title, dateTime, pageCount, uri, type));
+    }
+
+    private String resolveDisplayName(Uri uri, String fallbackName) {
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (nameIndex >= 0) {
+                    String displayName = cursor.getString(nameIndex);
+                    if (displayName != null && !displayName.trim().isEmpty()) {
+                        return displayName;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return fallbackName;
     }
 
     private byte[] readBytesFromUri(Uri uri) throws Exception {

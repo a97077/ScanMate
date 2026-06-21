@@ -81,7 +81,7 @@ public class ToolboxActivity extends AppCompatActivity {
         addSection("格式轉換");
         addGrid(new ToolItem[]{
                 new ToolItem("W", "轉 Word", "#26324A", "#5E8DF5", () ->
-                        openFeature("word", "轉 Word")
+                        startActivity(new Intent(this, TextExtractActivity.class))
                 ),
                 new ToolItem("X", "轉 Excel", "#243B2C", "#75E26A", () ->
                         openFeature("excel", "轉 Excel")
@@ -106,7 +106,7 @@ public class ToolboxActivity extends AppCompatActivity {
                         openFeature("page_sort", "頁面排序")
                 ),
                 new ToolItem("簽", "簽名批註", "#213D38", "#5ED5C5", () ->
-                        openFeature("signature", "簽名批註")
+                        openCaptureActivity("signature")
                 )
         });
     }

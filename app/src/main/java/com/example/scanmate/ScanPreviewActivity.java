@@ -78,8 +78,8 @@ public class ScanPreviewActivity extends AppCompatActivity {
         btnAdd.setOnClickListener(v -> openCaptureForAppend());
         btnEdit.setOnClickListener(v -> editLatestPage());
         btnShare.setOnClickListener(v -> shareCurrentPdf());
-        btnConvertWord.setOnClickListener(v -> openToolFeature("word", "轉 Word"));
-        btnSignature.setOnClickListener(v -> openToolFeature("signature", "電子簽名"));
+        btnConvertWord.setOnClickListener(v -> convertCurrentPageToWord());
+        btnSignature.setOnClickListener(v -> signCurrentPage());
 
         renderPreview();
     }
@@ -121,6 +121,26 @@ public class ScanPreviewActivity extends AppCompatActivity {
         }
         ScanDraftStore.editPage(currentPageIndex);
         startActivity(new Intent(this, ScanEditActivity.class));
+    }
+
+    private void convertCurrentPageToWord() {
+        if (ScanDraftStore.getPageCount() == 0) {
+            Toast.makeText(this, "尚無可辨識的頁面", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ScanDraftStore.editPage(currentPageIndex);
+        startActivity(new Intent(this, TextExtractActivity.class));
+    }
+
+    private void signCurrentPage() {
+        if (ScanDraftStore.getPageCount() == 0) {
+            Toast.makeText(this, "尚無可簽名的頁面", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ScanDraftStore.editPage(currentPageIndex);
+        Intent intent = new Intent(this, ScanEditActivity.class);
+        intent.putExtra("capture_mode", "signature");
+        startActivity(intent);
     }
 
     private void shareCurrentPdf() {
@@ -333,13 +353,6 @@ public class ScanPreviewActivity extends AppCompatActivity {
         } finally {
             pdfDocument.close();
         }
-    }
-
-    private void openToolFeature(String type, String title) {
-        Intent intent = new Intent(this, ToolFeatureActivity.class);
-        intent.putExtra(ToolFeatureActivity.EXTRA_TYPE, type);
-        intent.putExtra(ToolFeatureActivity.EXTRA_TITLE, title);
-        startActivity(intent);
     }
 
     private String generatePdfFileName() {

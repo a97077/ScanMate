@@ -2,8 +2,10 @@ package com.example.scanmate;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -76,6 +78,8 @@ public class TextExtractActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_text_extract);
+
+        DocumentStore.init(this);
 
         imgTextPreview = findViewById(R.id.imgTextPreview);
         txtTextReport = findViewById(R.id.txtTextReport);
@@ -194,10 +198,40 @@ public class TextExtractActivity extends AppCompatActivity {
             }
             outputStream.write(pendingOcrText.getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
+            recordExportedText(uri);
             Toast.makeText(this, "已匯出 OCR 文字", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "匯出失敗：" + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void recordExportedText(Uri uri) {
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
+        String title = resolveDisplayName(uri, "ScanMate_OCR_" + timestamp + ".txt");
+        String dateTime = new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(new Date());
+        DocumentStore.add(new DocumentItem(title, dateTime, 1, uri, "TXT"));
+    }
+
+    private String resolveDisplayName(Uri uri, String fallbackName) {
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (nameIndex >= 0) {
+                    String displayName = cursor.getString(nameIndex);
+                    if (displayName != null && !displayName.trim().isEmpty()) {
+                        return displayName;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return fallbackName;
     }
 
     private byte[] readBytesFromUri(Uri uri) throws Exception {
