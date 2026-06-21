@@ -122,8 +122,9 @@
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="92dp"
+        android:layout_height="104dp"
         android:background="@drawable/bg_scan_panel"
+        android:baselineAligned="false"
         android:gravity="center"
         android:orientation="horizontal">
 
@@ -167,16 +168,25 @@
             android:textColor="#FFFFFF"
             android:textSize="14sp" />
 
-        <TextView
+        <FrameLayout
             android:id="@+id/btnEditConfirm"
-            android:layout_width="84dp"
-            android:layout_height="56dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_scan_confirm"
-            android:gravity="center"
-            android:text="✓"
-            android:textColor="#FFFFFF"
-            android:textSize="34sp"
-            android:textStyle="bold" />
+            android:layout_width="108dp"
+            android:layout_height="match_parent"
+            android:background="#242529"
+            android:contentDescription="完成"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_scan_confirm"
+                android:gravity="center"
+                android:text="✓"
+                android:textColor="#FFFFFF"
+                android:textSize="34sp"
+                android:textStyle="bold" />
+        </FrameLayout>
     </LinearLayout>
 </LinearLayout>
