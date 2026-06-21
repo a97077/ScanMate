@@ -72,7 +72,7 @@ public class CropActivity extends AppCompatActivity {
         }
 
         sourceUri = Uri.parse(uriString);
-        boolean forcePortrait = getIntent().getBooleanExtra("force_portrait", false);
+        boolean forcePortrait = getIntent().getBooleanExtra("force_portrait", true);
         workingBitmap = decodeBitmap(sourceUri, forcePortrait);
         if (workingBitmap == null) {
             Toast.makeText(this, "圖片讀取失敗", Toast.LENGTH_SHORT).show();

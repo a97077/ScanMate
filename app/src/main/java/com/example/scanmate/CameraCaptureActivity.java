@@ -119,7 +119,7 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
                 if (uri != null) {
-                    openCropScreen(uri, false);
+                    openCropScreen(uri, true);
                 }
             });
 
