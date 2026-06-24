@@ -6,20 +6,12 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Locale;
 
 public class AIStudyActivity extends AppCompatActivity {
 
     public static final String EXTRA_OCR_TEXT = "ocr_text";
-
-    private static final String TYPE_EXAM = "考卷";
-    private static final String TYPE_HOMEWORK = "作業";
-    private static final String TYPE_REPORT = "報告";
-    private static final String TYPE_LECTURE = "課堂";
-    private static final String TYPE_GENERAL = "一般文件";
 
     private EditText edtAiOcrText;
     private TextView txtAiType;
@@ -62,7 +54,7 @@ public class AIStudyActivity extends AppCompatActivity {
     }
 
     private void analyzeText(String text) {
-        String type = detectDocumentType(text);
+        String type = DocumentTypeHelper.detectDocumentType(text);
         ArrayList<String> keywords = detectKeywords(text);
 
         txtAiType.setText("系統判斷此文件可能是：" + type);
@@ -80,35 +72,8 @@ public class AIStudyActivity extends AppCompatActivity {
         txtAiQuiz.setText("完成 OCR 或貼上文字後，系統會產生複習題。");
     }
 
-    private String detectDocumentType(String text) {
-        if (containsAny(text, "考試", "考卷", "選擇題", "問答題", "分數", "期中", "期末", "quiz", "exam", "test")) {
-            return TYPE_EXAM;
-        }
-        if (containsAny(text, "作業", "Homework", "Lab", "實驗", "繳交", "題目", "習題")) {
-            return TYPE_HOMEWORK;
-        }
-        if (containsAny(text, "摘要", "研究", "方法", "結果", "結論", "參考文獻", "report", "paper")) {
-            return TYPE_REPORT;
-        }
-        if (containsAny(text, "課程", "講義", "章節", "重點", "上課", "筆記", "lecture", "chapter")) {
-            return TYPE_LECTURE;
-        }
-        return TYPE_GENERAL;
-    }
-
-    private boolean containsAny(String text, String... words) {
-        String lowerText = text.toLowerCase(Locale.ROOT);
-        for (String word : words) {
-            if (lowerText.contains(word.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private String buildSuggestedName(String type) {
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        return "ScanMate_" + type + "_" + timestamp + ".pdf";
+        return DocumentTypeHelper.buildTypeAwarePdfFileName(type);
     }
 
     private String buildSummary(String text) {

@@ -96,9 +96,10 @@ public class DocumentStore {
                 int pageCount = object.optInt("pageCount");
                 String uriString = object.optString("pdfUri");
                 String type = object.optString("type", "PDF");
+                String documentType = object.optString("documentType", DocumentTypeHelper.TYPE_GENERAL);
 
                 Uri uri = uriString.isEmpty() ? null : Uri.parse(uriString);
-                documents.add(new DocumentItem(title, dateTime, pageCount, uri, type));
+                documents.add(new DocumentItem(title, dateTime, pageCount, uri, type, documentType));
             }
         } catch (Exception ignored) {
             documents.clear();
@@ -120,6 +121,7 @@ public class DocumentStore {
                 object.put("pageCount", item.pageCount);
                 object.put("pdfUri", item.pdfUri == null ? "" : item.pdfUri.toString());
                 object.put("type", item.type);
+                object.put("documentType", item.documentType);
                 array.put(object);
             }
         } catch (Exception ignored) {

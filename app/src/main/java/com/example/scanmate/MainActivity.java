@@ -195,7 +195,10 @@ public class MainActivity extends AppCompatActivity {
             titleView.setSingleLine(true);
 
             TextView metaView = new TextView(this);
-            metaView.setText(document.dateTime + "  |  " + document.pageCount + " 頁  |  " + document.type);
+            metaView.setText(document.dateTime
+                    + "  |  " + document.pageCount + " 頁"
+                    + "  |  類型：" + document.documentType
+                    + "  |  " + document.type);
             metaView.setTextColor(Color.parseColor("#9EA2AA"));
             metaView.setTextSize(14);
             metaView.setPadding(0, dp(4), 0, 0);
@@ -222,10 +225,17 @@ public class MainActivity extends AppCompatActivity {
 
             Button openButton = actionButton("查看");
             openButton.setOnClickListener(v -> openDocument(document));
+            Button deleteButton = actionButton("刪除");
+            deleteButton.setOnClickListener(v -> {
+                DocumentStore.remove(document);
+                renderRecentDocuments();
+                showStatus("已刪除文件紀錄");
+            });
 
             actions.addView(shareButton, actionLayoutParams(true));
             actions.addView(saveButton, actionLayoutParams(true));
-            actions.addView(openButton, actionLayoutParams(false));
+            actions.addView(openButton, actionLayoutParams(true));
+            actions.addView(deleteButton, actionLayoutParams(false));
 
             card.addView(row);
             card.addView(actions);
@@ -248,7 +258,8 @@ public class MainActivity extends AppCompatActivity {
 
         return document.title.toLowerCase(Locale.ROOT).contains(recentQuery)
                 || document.dateTime.toLowerCase(Locale.ROOT).contains(recentQuery)
-                || document.type.toLowerCase(Locale.ROOT).contains(recentQuery);
+                || document.type.toLowerCase(Locale.ROOT).contains(recentQuery)
+                || document.documentType.toLowerCase(Locale.ROOT).contains(recentQuery);
     }
 
     private String iconTextFor(DocumentItem document) {
@@ -385,7 +396,14 @@ public class MainActivity extends AppCompatActivity {
 
             String title = resolveDisplayName(targetUri, sourceDocument.title);
             String dateTime = formatDisplayTime(System.currentTimeMillis());
-            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, sourceDocument.type));
+            DocumentStore.add(new DocumentItem(
+                    title,
+                    dateTime,
+                    sourceDocument.pageCount,
+                    targetUri,
+                    sourceDocument.type,
+                    sourceDocument.documentType
+            ));
             renderRecentDocuments();
             showStatus("已另存文件：" + title);
         } catch (Exception e) {

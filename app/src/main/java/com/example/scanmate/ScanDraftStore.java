@@ -16,11 +16,15 @@ public class ScanDraftStore {
     private static final String KEY_TITLE = "title";
     private static final String KEY_SOURCE_URI = "source_uri";
     private static final String KEY_PAGE_COUNT = "page_count";
+    private static final String KEY_DOCUMENT_TYPE = "document_type";
+    private static final String KEY_USE_TYPE_AWARE_NAME = "use_type_aware_name";
     private static final ArrayList<Bitmap> pages = new ArrayList<>();
     private static Bitmap originalBitmap;
     private static Bitmap currentBitmap;
     private static Uri sourceUri;
     private static String documentTitle;
+    private static String documentType = DocumentTypeHelper.TYPE_GENERAL;
+    private static boolean useTypeAwareName = false;
     private static int editingPageIndex = -1;
 
     private ScanDraftStore() {
@@ -29,6 +33,8 @@ public class ScanDraftStore {
     public static void start(Uri uri, Bitmap bitmap, String title) {
         if (documentTitle == null || title == null || !documentTitle.equals(title)) {
             pages.clear();
+            documentType = DocumentTypeHelper.TYPE_GENERAL;
+            useTypeAwareName = false;
         }
         sourceUri = uri;
         originalBitmap = bitmap;
@@ -124,6 +130,19 @@ public class ScanDraftStore {
         documentTitle = title;
     }
 
+    public static String getDocumentType() {
+        return DocumentTypeHelper.normalize(documentType);
+    }
+
+    public static void setDocumentType(String type, boolean useTypeName) {
+        documentType = DocumentTypeHelper.normalize(type);
+        useTypeAwareName = useTypeName;
+    }
+
+    public static boolean shouldUseTypeAwareName() {
+        return useTypeAwareName;
+    }
+
     public static boolean hasDraft() {
         return getCurrentBitmap() != null || !pages.isEmpty();
     }
@@ -134,6 +153,8 @@ public class ScanDraftStore {
         currentBitmap = null;
         sourceUri = null;
         documentTitle = null;
+        documentType = DocumentTypeHelper.TYPE_GENERAL;
+        useTypeAwareName = false;
         editingPageIndex = -1;
     }
 
@@ -161,6 +182,8 @@ public class ScanDraftStore {
                 .putString(KEY_TITLE, documentTitle == null ? "" : documentTitle)
                 .putString(KEY_SOURCE_URI, sourceUri == null ? "" : sourceUri.toString())
                 .putInt(KEY_PAGE_COUNT, pages.size())
+                .putString(KEY_DOCUMENT_TYPE, getDocumentType())
+                .putBoolean(KEY_USE_TYPE_AWARE_NAME, useTypeAwareName)
                 .apply();
     }
 
@@ -194,6 +217,8 @@ public class ScanDraftStore {
         originalBitmap = pages.get(pages.size() - 1);
         currentBitmap = originalBitmap;
         documentTitle = prefs.getString(KEY_TITLE, "ScanMate Draft");
+        documentType = DocumentTypeHelper.normalize(prefs.getString(KEY_DOCUMENT_TYPE, DocumentTypeHelper.TYPE_GENERAL));
+        useTypeAwareName = prefs.getBoolean(KEY_USE_TYPE_AWARE_NAME, false);
         String uriString = prefs.getString(KEY_SOURCE_URI, "");
         sourceUri = uriString == null || uriString.isEmpty() ? null : Uri.parse(uriString);
         editingPageIndex = -1;

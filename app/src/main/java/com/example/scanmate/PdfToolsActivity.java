@@ -196,7 +196,14 @@ public class PdfToolsActivity extends AppCompatActivity {
 
             String title = resolveDisplayName(targetUri, sourceDocument.title);
             String dateTime = formatDisplayTime(System.currentTimeMillis());
-            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, "PDF"));
+            DocumentStore.add(new DocumentItem(
+                    title,
+                    dateTime,
+                    sourceDocument.pageCount,
+                    targetUri,
+                    "PDF",
+                    sourceDocument.documentType
+            ));
             renderStatus();
             showToast("已另存為 PDF：" + title);
         } catch (Exception e) {
@@ -468,7 +475,18 @@ public class PdfToolsActivity extends AppCompatActivity {
             outputStream.flush();
 
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", pdfFile);
-            DocumentStore.add(new DocumentItem(pdfName, formatDisplayTime(System.currentTimeMillis()), pages.size(), uri, "PDF"));
+            DocumentItem sourceDocument = DocumentStore.getLatestPdf();
+            String documentType = sourceDocument == null
+                    ? DocumentTypeHelper.TYPE_GENERAL
+                    : sourceDocument.documentType;
+            DocumentStore.add(new DocumentItem(
+                    pdfName,
+                    formatDisplayTime(System.currentTimeMillis()),
+                    pages.size(),
+                    uri,
+                    "PDF",
+                    documentType
+            ));
             renderStatus();
             return uri;
         } catch (Exception ignored) {
@@ -491,7 +509,18 @@ public class PdfToolsActivity extends AppCompatActivity {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
             outputStream.flush();
             Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", outputFile);
-            DocumentStore.add(new DocumentItem(fileName, formatDisplayTime(System.currentTimeMillis()), 1, uri, type));
+            DocumentItem sourceDocument = DocumentStore.getLatestPdf();
+            String documentType = sourceDocument == null
+                    ? DocumentTypeHelper.TYPE_GENERAL
+                    : sourceDocument.documentType;
+            DocumentStore.add(new DocumentItem(
+                    fileName,
+                    formatDisplayTime(System.currentTimeMillis()),
+                    1,
+                    uri,
+                    type,
+                    documentType
+            ));
             renderStatus();
             return uri;
         } catch (Exception ignored) {

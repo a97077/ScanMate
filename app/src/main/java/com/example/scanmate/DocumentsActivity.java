@@ -137,7 +137,8 @@ public class DocumentsActivity extends AppCompatActivity {
 
         return document.title.toLowerCase(Locale.ROOT).contains(currentQuery)
                 || document.dateTime.toLowerCase(Locale.ROOT).contains(currentQuery)
-                || document.type.toLowerCase(Locale.ROOT).contains(currentQuery);
+                || document.type.toLowerCase(Locale.ROOT).contains(currentQuery)
+                || document.documentType.toLowerCase(Locale.ROOT).contains(currentQuery);
     }
 
     private LinearLayout createDocumentCard(DocumentItem document) {
@@ -179,7 +180,10 @@ public class DocumentsActivity extends AppCompatActivity {
         title.setSingleLine(true);
 
         TextView meta = new TextView(this);
-        meta.setText(document.dateTime + "  |  " + document.pageCount + " 頁  |  " + document.type);
+        meta.setText(document.dateTime
+                + "  |  " + document.pageCount + " 頁"
+                + "  |  類型：" + document.documentType
+                + "  |  " + document.type);
         meta.setTextColor(Color.parseColor("#A8ACB4"));
         meta.setTextSize(14);
         meta.setPadding(0, dp(4), 0, 0);
@@ -297,7 +301,14 @@ public class DocumentsActivity extends AppCompatActivity {
 
             String title = resolveDisplayName(targetUri, sourceDocument.title);
             String dateTime = formatDisplayTime(System.currentTimeMillis());
-            DocumentStore.add(new DocumentItem(title, dateTime, sourceDocument.pageCount, targetUri, sourceDocument.type));
+            DocumentStore.add(new DocumentItem(
+                    title,
+                    dateTime,
+                    sourceDocument.pageCount,
+                    targetUri,
+                    sourceDocument.type,
+                    sourceDocument.documentType
+            ));
             renderDocuments();
             showToast("已另存文件：" + title);
         } catch (Exception e) {

@@ -361,12 +361,14 @@ public class ToolFeatureActivity extends AppCompatActivity {
 
         if (featureType.equals("excel")) {
             StringBuilder csv = new StringBuilder();
-            csv.append("title,dateTime,pageCount,type\n");
+            csv.append("title,dateTime,pageCount,type,documentType\n");
             for (DocumentItem item : documents) {
                 csv.append('"').append(item.title.replace("\"", "\"\"")).append('"')
                         .append(",").append('"').append(item.dateTime).append('"')
                         .append(",").append(item.pageCount)
-                        .append(",").append(item.type).append("\n");
+                        .append(",").append(item.type)
+                        .append(",").append('"').append(item.documentType).append('"')
+                        .append("\n");
             }
             return csv.toString();
         }
@@ -394,7 +396,9 @@ public class ToolFeatureActivity extends AppCompatActivity {
                         .append(item.dateTime)
                         .append(" | ")
                         .append(item.pageCount)
-                        .append(" 頁\n");
+                        .append(" 頁 | ")
+                        .append(item.documentType)
+                        .append("\n");
             }
         }
 

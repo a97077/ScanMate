@@ -211,7 +211,7 @@ public class ScanPreviewActivity extends AppCompatActivity {
     }
 
     private void showMoreActions() {
-        String[] actions = {"儲存 PDF", "分享 PDF", "頁面管理", "全部文檔"};
+        String[] actions = {"儲存 PDF", "分享 PDF", "文件類型/命名", "頁面管理", "全部文檔"};
         new AlertDialog.Builder(this)
                 .setTitle("文件操作")
                 .setItems(actions, (dialog, which) -> {
@@ -223,10 +223,29 @@ public class ScanPreviewActivity extends AppCompatActivity {
                     } else if (which == 1) {
                         shareCurrentPdf();
                     } else if (which == 2) {
+                        showDocumentTypeDialog();
+                    } else if (which == 3) {
                         showPageActions();
                     } else {
                         startActivity(new Intent(this, DocumentsActivity.class));
                     }
+                })
+                .show();
+    }
+
+    private void showDocumentTypeDialog() {
+        String[] types = DocumentTypeHelper.supportedTypes();
+        new AlertDialog.Builder(this)
+                .setTitle("文件類型與命名")
+                .setItems(types, (dialog, which) -> {
+                    String type = types[which];
+                    ScanDraftStore.setDocumentType(type, true);
+                    ScanDraftStore.saveDraft(this);
+                    Toast.makeText(
+                            this,
+                            "已設定文件類型：" + type + "，儲存時會使用類型命名",
+                            Toast.LENGTH_SHORT
+                    ).show();
                 })
                 .show();
     }
@@ -368,7 +387,8 @@ public class ScanPreviewActivity extends AppCompatActivity {
                     new SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()).format(new Date()),
                     pages.size(),
                     pdfUri,
-                    "PDF"
+                    "PDF",
+                    ScanDraftStore.getDocumentType()
             ));
             Toast.makeText(this, "已建立 PDF：" + pdfName, Toast.LENGTH_SHORT).show();
             return pdfUri;
@@ -381,8 +401,10 @@ public class ScanPreviewActivity extends AppCompatActivity {
     }
 
     private String generatePdfFileName() {
-        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-        return "ScanMate_" + timestamp + ".pdf";
+        return DocumentTypeHelper.buildPdfFileName(
+                ScanDraftStore.getDocumentType(),
+                ScanDraftStore.shouldUseTypeAwareName()
+        );
     }
 
     private GradientDrawable rounded(String color, int radius) {
