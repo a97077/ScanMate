@@ -51,6 +51,9 @@
             android:name=".StudyActivity"
             android:exported="false" />
         <activity
+            android:name=".AIStudyActivity"
+            android:exported="false" />
+        <activity
             android:name=".TextExtractActivity"
             android:exported="false" />
         <activity

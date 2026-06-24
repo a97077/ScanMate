@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
         btnSharePdf.setOnClickListener(v -> importDocumentLauncher.launch(new String[]{"application/pdf"}));
         btnIdScan.setOnClickListener(v -> openCaptureActivity("id"));
         btnOcr.setOnClickListener(v -> startActivity(new Intent(this, TextExtractActivity.class)));
-        btnAiStudy.setOnClickListener(v -> startActivity(new Intent(this, StudyActivity.class)));
+        btnAiStudy.setOnClickListener(v -> startActivity(new Intent(this, AIStudyActivity.class)));
         btnAll.setOnClickListener(v -> openToolboxActivity());
 
         navHome.setOnClickListener(v -> showStatus("目前位於首頁"));
