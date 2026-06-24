@@ -185,7 +185,7 @@ public class ToolFeatureActivity extends AppCompatActivity {
             case "ppt":
                 return "匯出 PPT 簡報大綱，可貼到簡報軟體。";
             default:
-                return "此工具已建立基礎處理流程，可接續擴充正式服務。";
+                return "此功能為後續擴充項目，將在完成掃描、PDF、最近文件與 OCR 主流程後再加入。";
         }
     }
 
