@@ -1,5 +1,6 @@
 package com.example.scanmate;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.database.Cursor;
@@ -86,6 +87,7 @@ public class TextExtractActivity extends AppCompatActivity {
         Button btnSelectTextImage = findViewById(R.id.btnSelectTextImage);
         Button btnCaptureTextImage = findViewById(R.id.btnCaptureTextImage);
         Button btnExportOcrText = findViewById(R.id.btnExportOcrText);
+        Button btnSendToAiStudy = findViewById(R.id.btnSendToAiStudy);
 
         if (!Python.isStarted()) {
             Python.start(new AndroidPlatform(this));
@@ -103,6 +105,7 @@ public class TextExtractActivity extends AppCompatActivity {
             String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
             exportTextLauncher.launch("ScanMate_OCR_" + timestamp + ".txt");
         });
+        btnSendToAiStudy.setOnClickListener(v -> openAiStudyAssistant());
 
         if (ScanDraftStore.hasDraft() && ScanDraftStore.getCurrentBitmap() != null) {
             btnSelectTextImage.setText("重新選擇圖片");
@@ -189,6 +192,17 @@ public class TextExtractActivity extends AppCompatActivity {
             builder.append(text);
         }
         txtTextReport.setText(builder.toString());
+    }
+
+    private void openAiStudyAssistant() {
+        if (pendingOcrText == null || pendingOcrText.trim().isEmpty()) {
+            Toast.makeText(this, "請先完成 OCR 辨識", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        Intent intent = new Intent(this, AIStudyActivity.class);
+        intent.putExtra(AIStudyActivity.EXTRA_OCR_TEXT, pendingOcrText.trim());
+        startActivity(intent);
     }
 
     private void exportOcrText(Uri uri) {

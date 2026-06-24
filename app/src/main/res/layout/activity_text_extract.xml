@@ -77,6 +77,16 @@
             android:textAllCaps="false"
             android:textColor="#FFFFFF" />
 
+        <Button
+            android:id="@+id/btnSendToAiStudy"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="10dp"
+            android:backgroundTint="#5E8DF5"
+            android:text="送到 AI 學習助理"
+            android:textAllCaps="false"
+            android:textColor="#FFFFFF" />
+
         <ImageView
             android:id="@+id/imgTextPreview"
             android:layout_width="match_parent"
