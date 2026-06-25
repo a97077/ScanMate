@@ -37,11 +37,18 @@ import java.util.Locale;
 
 public class TextExtractActivity extends AppCompatActivity {
 
+    public static final String EXTRA_AUTO_START_MODE = "auto_start_mode";
+    public static final String EXTRA_RETURN_TO_AI = "return_to_ai";
+    public static final String EXTRA_MODE_CAMERA = "camera";
+    public static final String EXTRA_MODE_GALLERY = "gallery";
+
     private ImageView imgTextPreview;
     private TextView txtTextReport;
     private Python py;
     private String pendingOcrText = "";
     private Uri pendingCameraUri;
+    private boolean returnToAiAfterOcr = false;
+    private boolean autoInputLaunched = false;
 
     private final ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(
@@ -88,6 +95,8 @@ public class TextExtractActivity extends AppCompatActivity {
         Button btnCaptureTextImage = findViewById(R.id.btnCaptureTextImage);
         Button btnExportOcrText = findViewById(R.id.btnExportOcrText);
         Button btnSendToAiStudy = findViewById(R.id.btnSendToAiStudy);
+        String autoStartMode = getIntent().getStringExtra(EXTRA_AUTO_START_MODE);
+        returnToAiAfterOcr = getIntent().getBooleanExtra(EXTRA_RETURN_TO_AI, false);
 
         if (!Python.isStarted()) {
             Python.start(new AndroidPlatform(this));
@@ -107,9 +116,23 @@ public class TextExtractActivity extends AppCompatActivity {
         });
         btnSendToAiStudy.setOnClickListener(v -> openAiStudyAssistant());
 
-        if (ScanDraftStore.hasDraft() && ScanDraftStore.getCurrentBitmap() != null) {
+        if (autoStartMode == null && ScanDraftStore.hasDraft() && ScanDraftStore.getCurrentBitmap() != null) {
             btnSelectTextImage.setText("重新選擇圖片");
             processBitmap(ScanDraftStore.getCurrentBitmap());
+        } else if (autoStartMode != null && !autoStartMode.trim().isEmpty()) {
+            findViewById(android.R.id.content).post(() -> launchAutoInput(autoStartMode));
+        }
+    }
+
+    private void launchAutoInput(String mode) {
+        if (autoInputLaunched) {
+            return;
+        }
+        autoInputLaunched = true;
+        if (EXTRA_MODE_CAMERA.equals(mode)) {
+            launchTextCamera();
+        } else if (EXTRA_MODE_GALLERY.equals(mode)) {
+            pickImageLauncher.launch("image/*");
         }
     }
 
@@ -192,6 +215,14 @@ public class TextExtractActivity extends AppCompatActivity {
             builder.append(text);
         }
         txtTextReport.setText(builder.toString());
+
+        if (returnToAiAfterOcr && !text.isEmpty()) {
+            returnToAiAfterOcr = false;
+            Intent intent = new Intent(this, AIStudyActivity.class);
+            intent.putExtra(AIStudyActivity.EXTRA_OCR_TEXT, text);
+            startActivity(intent);
+            finish();
+        }
     }
 
     private void openAiStudyAssistant() {

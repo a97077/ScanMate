@@ -1,8 +1,20 @@
 package com.example.scanmate;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.View;
+import android.view.inputmethod.InputMethodManager;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -14,11 +26,22 @@ public class AIStudyActivity extends AppCompatActivity {
     public static final String EXTRA_OCR_TEXT = "ocr_text";
 
     private EditText edtAiOcrText;
+    private TextView txtAiEmptyState;
+    private LinearLayout layoutAiResults;
     private TextView txtAiType;
     private TextView txtAiName;
     private TextView txtAiSummary;
     private TextView txtAiKeywords;
     private TextView txtAiQuiz;
+    private Button btnTypeLecture;
+    private Button btnTypeHomework;
+    private Button btnTypeReport;
+    private Button btnTypeExam;
+    private Button btnTypeGeneral;
+
+    private String selectedType = DocumentTypeHelper.TYPE_GENERAL;
+    private boolean manualTypeSelected = false;
+    private String latestSuggestedName = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -26,50 +49,190 @@ public class AIStudyActivity extends AppCompatActivity {
         setContentView(R.layout.activity_ai_study);
 
         edtAiOcrText = findViewById(R.id.edtAiOcrText);
+        txtAiEmptyState = findViewById(R.id.txtAiEmptyState);
+        layoutAiResults = findViewById(R.id.layoutAiResults);
         txtAiType = findViewById(R.id.txtAiType);
         txtAiName = findViewById(R.id.txtAiName);
         txtAiSummary = findViewById(R.id.txtAiSummary);
         txtAiKeywords = findViewById(R.id.txtAiKeywords);
         txtAiQuiz = findViewById(R.id.txtAiQuiz);
+        btnTypeLecture = findViewById(R.id.btnTypeLecture);
+        btnTypeHomework = findViewById(R.id.btnTypeHomework);
+        btnTypeReport = findViewById(R.id.btnTypeReport);
+        btnTypeExam = findViewById(R.id.btnTypeExam);
+        btnTypeGeneral = findViewById(R.id.btnTypeGeneral);
 
         findViewById(R.id.btnAiBack).setOnClickListener(v -> finish());
         findViewById(R.id.btnAiAnalyze).setOnClickListener(v -> analyzeCurrentText());
+        findViewById(R.id.btnAiClearText).setOnClickListener(v -> clearTextAndResults());
+        findViewById(R.id.btnAiCopyName).setOnClickListener(v -> copySuggestedName());
+        findViewById(R.id.btnAiOcrCamera).setOnClickListener(v -> openOcr(TextExtractActivity.EXTRA_MODE_CAMERA));
+        findViewById(R.id.btnAiOcrGallery).setOnClickListener(v -> openOcr(TextExtractActivity.EXTRA_MODE_GALLERY));
+
+        btnTypeLecture.setOnClickListener(v -> selectType(DocumentTypeHelper.TYPE_LECTURE, true));
+        btnTypeHomework.setOnClickListener(v -> selectType(DocumentTypeHelper.TYPE_HOMEWORK, true));
+        btnTypeReport.setOnClickListener(v -> selectType(DocumentTypeHelper.TYPE_REPORT, true));
+        btnTypeExam.setOnClickListener(v -> selectType(DocumentTypeHelper.TYPE_EXAM, true));
+        btnTypeGeneral.setOnClickListener(v -> selectType(DocumentTypeHelper.TYPE_GENERAL, true));
+
+        updateTypeButtons();
+        attachAutoAnalyzeWatcher();
 
         String incomingText = getIntent().getStringExtra(EXTRA_OCR_TEXT);
         if (incomingText != null && !incomingText.trim().isEmpty()) {
             edtAiOcrText.setText(incomingText.trim());
             analyzeText(incomingText.trim());
         } else {
-            renderEmptyState();
+            renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。也可以先選擇文件標籤，後續命名會套用此類型。");
         }
     }
 
-    private void analyzeCurrentText() {
-        String text = edtAiOcrText.getText() == null ? "" : edtAiOcrText.getText().toString().trim();
+    private void openOcr(String mode) {
+        Intent intent = new Intent(this, TextExtractActivity.class);
+        intent.putExtra(TextExtractActivity.EXTRA_AUTO_START_MODE, mode);
+        intent.putExtra(TextExtractActivity.EXTRA_RETURN_TO_AI, true);
+        startActivity(intent);
+    }
+
+    private void selectType(String type, boolean manual) {
+        selectedType = DocumentTypeHelper.normalize(type);
+        manualTypeSelected = manual;
+        updateTypeButtons();
+
+        String text = getCurrentText();
         if (text.isEmpty()) {
-            renderEmptyState();
+            latestSuggestedName = buildSuggestedName(selectedType);
+            renderEmptyState("已選擇「" + selectedType + "」標籤。貼上文字或使用 OCR 後，系統會以此類型整理並建議命名。");
             return;
         }
         analyzeText(text);
     }
 
-    private void analyzeText(String text) {
-        String type = DocumentTypeHelper.detectDocumentType(text);
-        ArrayList<String> keywords = detectKeywords(text);
-
-        txtAiType.setText("系統判斷此文件可能是：" + type);
-        txtAiName.setText(buildSuggestedName(type));
-        txtAiSummary.setText(buildSummary(text));
-        txtAiKeywords.setText(keywords.isEmpty() ? "尚未偵測到明確關鍵字" : joinKeywords(keywords));
-        txtAiQuiz.setText(buildQuiz(type, keywords));
+    private void analyzeCurrentText() {
+        String text = getCurrentText();
+        hideKeyboard();
+        if (text.isEmpty()) {
+            renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。");
+            return;
+        }
+        analyzeText(text);
     }
 
-    private void renderEmptyState() {
-        txtAiType.setText("請先透過 OCR 提取文字，或貼上文字進行整理。");
-        txtAiName.setText("尚無命名建議");
-        txtAiSummary.setText("文字內容不足，請重新 OCR 或補充文字");
-        txtAiKeywords.setText("尚未偵測到明確關鍵字");
-        txtAiQuiz.setText("完成 OCR 或貼上文字後，系統會產生複習題。");
+    private String getCurrentText() {
+        return edtAiOcrText.getText() == null ? "" : edtAiOcrText.getText().toString().trim();
+    }
+
+    private void attachAutoAnalyzeWatcher() {
+        edtAiOcrText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                String text = s == null ? "" : s.toString().trim();
+                if (text.isEmpty()) {
+                    latestSuggestedName = "";
+                    renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。也可以先選擇文件標籤，後續命名會套用此類型。");
+                    return;
+                }
+                analyzeText(text);
+            }
+        });
+    }
+
+    private void hideKeyboard() {
+        View focus = getCurrentFocus();
+        if (focus == null) {
+            focus = edtAiOcrText;
+        }
+        InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm != null && focus != null) {
+            imm.hideSoftInputFromWindow(focus.getWindowToken(), 0);
+        }
+        edtAiOcrText.clearFocus();
+    }
+
+    private void analyzeText(String text) {
+        String type = manualTypeSelected ? selectedType : DocumentTypeHelper.detectDocumentType(text);
+        selectedType = DocumentTypeHelper.normalize(type);
+        latestSuggestedName = buildSuggestedName(selectedType);
+        ArrayList<String> keywords = detectKeywords(text);
+
+        updateTypeButtons();
+        applyTypeToCurrentDraft(selectedType);
+
+        txtAiType.setText(buildTypeReport(selectedType, manualTypeSelected));
+        txtAiName.setText(latestSuggestedName + "\n\n命名邏輯：文件標籤 + 系統日期時間 + PDF 副檔名");
+        txtAiSummary.setText(buildSummary(text));
+        txtAiKeywords.setText(keywords.isEmpty() ? "尚未偵測到明確關鍵字" : joinKeywords(keywords));
+        txtAiQuiz.setText(buildQuiz(selectedType, keywords));
+
+        txtAiEmptyState.setVisibility(View.GONE);
+        layoutAiResults.setVisibility(View.VISIBLE);
+    }
+
+    private String buildTypeReport(String type, boolean manual) {
+        String source = manual ? "使用者一鍵標籤" : "OCR 文字規則判斷";
+        return "目前標籤：" + type + "\n"
+                + "判斷來源：" + source + "\n"
+                + "用途：用於自動命名、最近文件 metadata 與複習整理。";
+    }
+
+    private void applyTypeToCurrentDraft(String type) {
+        if (!ScanDraftStore.hasDraft()) {
+            return;
+        }
+        ScanDraftStore.setDocumentType(type, true);
+        ScanDraftStore.saveDraft(this);
+    }
+
+    private void renderEmptyState(String message) {
+        txtAiEmptyState.setText(message + "\n\n可用流程：拍照 OCR → 一鍵標籤 → 分析文字 → 產生命名、重點與複習題。");
+        txtAiEmptyState.setVisibility(View.VISIBLE);
+        layoutAiResults.setVisibility(View.GONE);
+    }
+
+    private void clearTextAndResults() {
+        edtAiOcrText.setText("");
+        manualTypeSelected = false;
+        selectedType = DocumentTypeHelper.TYPE_GENERAL;
+        latestSuggestedName = "";
+        updateTypeButtons();
+        renderEmptyState("已清除文字。請重新 OCR、導入圖片或貼上文字。");
+    }
+
+    private void copySuggestedName() {
+        if (latestSuggestedName == null || latestSuggestedName.trim().isEmpty()) {
+            Toast.makeText(this, "請先分析文字產生命名建議", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        ClipboardManager clipboardManager = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboardManager != null) {
+            clipboardManager.setPrimaryClip(ClipData.newPlainText("ScanMate file name", latestSuggestedName));
+        }
+        Toast.makeText(this, "已複製命名建議", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateTypeButtons() {
+        styleTypeButton(btnTypeLecture, DocumentTypeHelper.TYPE_LECTURE);
+        styleTypeButton(btnTypeHomework, DocumentTypeHelper.TYPE_HOMEWORK);
+        styleTypeButton(btnTypeReport, DocumentTypeHelper.TYPE_REPORT);
+        styleTypeButton(btnTypeExam, DocumentTypeHelper.TYPE_EXAM);
+        styleTypeButton(btnTypeGeneral, DocumentTypeHelper.TYPE_GENERAL);
+    }
+
+    private void styleTypeButton(Button button, String type) {
+        boolean selected = type.equals(selectedType);
+        button.setText(type);
+        button.setTextColor(selected ? Color.parseColor("#101114") : Color.parseColor("#D8DDE6"));
+        button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(
+                Color.parseColor(selected ? "#55C3A8" : "#2A2D33")
+        ));
     }
 
     private String buildSuggestedName(String type) {
@@ -89,7 +252,7 @@ public class AIStudyActivity extends AppCompatActivity {
         StringBuilder builder = new StringBuilder();
         int limit = Math.min(5, lines.size());
         for (int i = 0; i < limit; i++) {
-            builder.append("- ").append(lines.get(i)).append("\n");
+            builder.append("• ").append(lines.get(i)).append("\n");
         }
         return builder.toString().trim();
     }
