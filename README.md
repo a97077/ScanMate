@@ -177,9 +177,10 @@ app/build/outputs/apk/debug/app-debug.apk
 
 | 成員 | 貢獻 |
 | --- | --- |
-| 林秉宏 | Android Java/XML 介面、掃描流程、Chaquopy/OpenCV 整合、PDF 工具、OCR、AI 學習助理、測試與展示整理 |
+| 林柄宏 | Android Java/XML 介面、掃描流程、Chaquopy/OpenCV 整合、PDF 工具、OCR、AI 學習助理、測試與展示整理 |
+| --- | --- |
+| 劉文輝 | Android Java/XML 介面、掃描流程、Chaquopy/OpenCV 整合、PDF 工具、OCR、AI 學習助理、測試與展示整理 |
 
-若為多人組別，可在此表補上每位組員的實際負責項目，並搭配 GitHub commit 紀錄作為佐證。
 
 ## 目前完成的主要功能
 
