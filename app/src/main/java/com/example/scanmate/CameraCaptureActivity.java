@@ -73,11 +73,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private TextView btnFlash;
     private TextView btnHd;
     private TextView btnCaptureDone;
-    private TextView btnModeWord;
-    private TextView btnModeSignature;
     private TextView btnModeSingle;
     private TextView btnModeContinuous;
-    private TextView btnModeErase;
 
     private CameraDevice cameraDevice;
     private CameraCaptureSession cameraSession;
@@ -183,11 +180,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
         btnFlash = findViewById(R.id.btnFlash);
         btnHd = findViewById(R.id.btnHd);
         btnCaptureDone = findViewById(R.id.btnCaptureDone);
-        btnModeWord = findViewById(R.id.btnModeWord);
-        btnModeSignature = findViewById(R.id.btnModeSignature);
         btnModeSingle = findViewById(R.id.btnModeSingle);
         btnModeContinuous = findViewById(R.id.btnModeContinuous);
-        btnModeErase = findViewById(R.id.btnModeErase);
 
         documentTitle = getIntent().getStringExtra("document_title");
         if (documentTitle == null || documentTitle.trim().isEmpty()) {
@@ -210,11 +204,8 @@ public class CameraCaptureActivity extends AppCompatActivity {
         btnAllFunctions.setOnClickListener(v -> startActivity(new Intent(this, ToolboxActivity.class)));
         btnImportImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
         btnImportDocument.setOnClickListener(v -> importDocumentLauncher.launch(new String[]{"application/pdf"}));
-        btnModeWord.setOnClickListener(v -> setCaptureWorkflowMode("word", "拍圖轉 Word：拍攝後確認即可進入文字辨識"));
-        btnModeSignature.setOnClickListener(v -> setCaptureWorkflowMode("signature", "電子簽名模式：掃描後可在編輯頁加入簽名"));
         btnModeSingle.setOnClickListener(v -> setCaptureWorkflowMode("scan", "單張拍攝模式"));
         btnModeContinuous.setOnClickListener(v -> setContinuousMode(true));
-        btnModeErase.setOnClickListener(v -> setCaptureWorkflowMode("erase", "AI 擦除模式：先套用去陰影清理，後續可升級物件擦除"));
 
         captureMode = getIntent().getStringExtra("capture_mode");
         if (!"append".equals(captureMode)) {
@@ -224,15 +215,6 @@ public class CameraCaptureActivity extends AppCompatActivity {
             txtCaptureHint.postDelayed(() -> pickImageLauncher.launch("image/*"), 250);
         } else if ("continuous".equals(captureMode)) {
             setContinuousMode(true);
-        } else if ("word".equals(captureMode)) {
-            highlightMode(btnModeWord);
-            showHint("拍圖轉 Word：拍攝後確認即可進入文字辨識");
-        } else if ("signature".equals(captureMode)) {
-            highlightMode(btnModeSignature);
-            showHint("電子簽名模式：掃描後可在編輯頁加入簽名");
-        } else if ("erase".equals(captureMode)) {
-            highlightMode(btnModeErase);
-            showHint("AI 擦除模式：先套用去陰影清理");
         } else if ("id".equals(captureMode)) {
             if (documentTitle.startsWith("ScanMate ")) {
                 documentTitle = "IDScan " + new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.getDefault()).format(new Date());
@@ -521,23 +503,13 @@ public class CameraCaptureActivity extends AppCompatActivity {
     private void setCaptureWorkflowMode(String mode, String hint) {
         continuousMode = false;
         captureMode = mode;
-        if ("word".equals(mode)) {
-            documentTitle = "WordScan " + new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.getDefault()).format(new Date());
-            highlightMode(btnModeWord);
-        } else if ("signature".equals(mode)) {
-            documentTitle = "SignScan " + new SimpleDateFormat("yyyy-MM-dd HH.mm", Locale.getDefault()).format(new Date());
-            highlightMode(btnModeSignature);
-        } else if ("erase".equals(mode)) {
-            highlightMode(btnModeErase);
-        } else {
-            highlightMode(btnModeSingle);
-        }
+        highlightMode(btnModeSingle);
         btnCaptureDone.setVisibility(View.GONE);
         showModeHint(hint);
     }
 
     private void highlightMode(TextView activeButton) {
-        TextView[] buttons = {btnModeWord, btnModeSignature, btnModeSingle, btnModeContinuous, btnModeErase};
+        TextView[] buttons = {btnModeSingle, btnModeContinuous};
         for (TextView button : buttons) {
             boolean active = button == activeButton;
             button.setTextColor(active ? Color.parseColor("#40D6C1") : Color.parseColor("#C4C7CC"));

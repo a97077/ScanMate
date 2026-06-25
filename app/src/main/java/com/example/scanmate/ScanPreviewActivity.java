@@ -69,7 +69,6 @@ public class ScanPreviewActivity extends AppCompatActivity {
         View btnAdd = findViewById(R.id.btnPreviewAdd);
         View btnEdit = findViewById(R.id.btnPreviewEdit);
         View btnShare = findViewById(R.id.btnPreviewShare);
-        View btnConvertWord = findViewById(R.id.btnPreviewConvertWord);
         View btnSignature = findViewById(R.id.btnPreviewSignature);
 
         btnBack.setOnClickListener(v -> finish());
@@ -81,7 +80,6 @@ public class ScanPreviewActivity extends AppCompatActivity {
         btnAdd.setOnClickListener(v -> openCaptureForAppend());
         btnEdit.setOnClickListener(v -> editLatestPage());
         btnShare.setOnClickListener(v -> shareCurrentPdf());
-        btnConvertWord.setOnClickListener(v -> convertCurrentPageToWord());
         btnSignature.setOnClickListener(v -> signCurrentPage());
 
         renderPreview();
@@ -146,15 +144,6 @@ public class ScanPreviewActivity extends AppCompatActivity {
         }
         ScanDraftStore.editPage(currentPageIndex);
         startActivity(new Intent(this, ScanEditActivity.class));
-    }
-
-    private void convertCurrentPageToWord() {
-        if (ScanDraftStore.getPageCount() == 0) {
-            Toast.makeText(this, "尚無可辨識的頁面", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        ScanDraftStore.editPage(currentPageIndex);
-        startActivity(new Intent(this, TextExtractActivity.class));
     }
 
     private void signCurrentPage() {

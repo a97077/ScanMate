@@ -48,7 +48,7 @@ public class ProfileActivity extends AppCompatActivity {
                         "最近文件：" + DocumentStore.size() + " 份\n" +
                         "掃描能力：拍攝、導入圖片、文件校正、旋轉、濾鏡增強\n" +
                         "PDF 能力：文件頁面管理、PDF 建立、開啟、分享、導入、最近文件保存\n" +
-                        "工具能力：文字提取前處理、證件照、公式區塊、拍照翻譯、PDF 轉圖片、長圖片、簽名批註\n" +
+                        "工具能力：OCR 文字提取、AI 課堂整理、智慧命名、PDF 工具、最近文件管理\n" +
                         "資料保存：最近文件 metadata 本機保存"
         );
     }

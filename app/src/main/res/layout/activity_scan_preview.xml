@@ -172,16 +172,6 @@
             android:textSize="14sp" />
 
         <TextView
-            android:id="@+id/btnPreviewConvertWord"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:text="W\n轉 Word"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp" />
-
-        <TextView
             android:id="@+id/btnPreviewSignature"
             android:layout_width="0dp"
             android:layout_height="match_parent"
