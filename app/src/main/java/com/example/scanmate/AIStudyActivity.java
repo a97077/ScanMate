@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.View;
@@ -24,6 +26,8 @@ import java.util.Locale;
 public class AIStudyActivity extends AppCompatActivity {
 
     public static final String EXTRA_OCR_TEXT = "ocr_text";
+    private static final int MAX_ANALYSIS_CHARS = 6000;
+    private static final int AUTO_ANALYZE_DELAY_MS = 450;
 
     private EditText edtAiOcrText;
     private TextView txtAiEmptyState;
@@ -42,6 +46,9 @@ public class AIStudyActivity extends AppCompatActivity {
     private String selectedType = DocumentTypeHelper.TYPE_GENERAL;
     private boolean manualTypeSelected = false;
     private String latestSuggestedName = "";
+    private boolean suppressAutoAnalyze = false;
+    private final Handler analyzeHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingAnalyzeRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,8 +87,11 @@ public class AIStudyActivity extends AppCompatActivity {
 
         String incomingText = getIntent().getStringExtra(EXTRA_OCR_TEXT);
         if (incomingText != null && !incomingText.trim().isEmpty()) {
-            edtAiOcrText.setText(incomingText.trim());
-            analyzeText(incomingText.trim());
+            String preparedText = prepareAnalysisText(incomingText.trim());
+            suppressAutoAnalyze = true;
+            edtAiOcrText.setText(preparedText);
+            suppressAutoAnalyze = false;
+            edtAiOcrText.postDelayed(() -> analyzeText(getCurrentText()), 250);
         } else {
             renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。也可以先選擇文件標籤，後續命名會套用此類型。");
         }
@@ -109,6 +119,7 @@ public class AIStudyActivity extends AppCompatActivity {
     }
 
     private void analyzeCurrentText() {
+        cancelPendingAnalyze();
         String text = getCurrentText();
         hideKeyboard();
         if (text.isEmpty()) {
@@ -134,15 +145,47 @@ public class AIStudyActivity extends AppCompatActivity {
 
             @Override
             public void afterTextChanged(Editable s) {
+                if (suppressAutoAnalyze) {
+                    return;
+                }
                 String text = s == null ? "" : s.toString().trim();
                 if (text.isEmpty()) {
                     latestSuggestedName = "";
                     renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。也可以先選擇文件標籤，後續命名會套用此類型。");
                     return;
                 }
-                analyzeText(text);
+                scheduleAutoAnalyze(text);
             }
         });
+    }
+
+    private void scheduleAutoAnalyze(String text) {
+        cancelPendingAnalyze();
+        String preparedText = prepareAnalysisText(text);
+        pendingAnalyzeRunnable = () -> analyzeText(preparedText);
+        analyzeHandler.postDelayed(pendingAnalyzeRunnable, AUTO_ANALYZE_DELAY_MS);
+    }
+
+    private void cancelPendingAnalyze() {
+        if (pendingAnalyzeRunnable != null) {
+            analyzeHandler.removeCallbacks(pendingAnalyzeRunnable);
+            pendingAnalyzeRunnable = null;
+        }
+    }
+
+    private String prepareAnalysisText(String text) {
+        if (text == null) {
+            return "";
+        }
+        String normalized = text
+                .replace('\u0000', ' ')
+                .replaceAll("[\\t ]+", " ")
+                .trim();
+        if (normalized.length() <= MAX_ANALYSIS_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_ANALYSIS_CHARS).trim()
+                + "\n\n（OCR 文字較長，已先取前 " + MAX_ANALYSIS_CHARS + " 字進行整理）";
     }
 
     private void hideKeyboard() {
@@ -158,6 +201,12 @@ public class AIStudyActivity extends AppCompatActivity {
     }
 
     private void analyzeText(String text) {
+        text = prepareAnalysisText(text);
+        if (text.isEmpty()) {
+            renderEmptyState("請先透過 OCR 提取文字，或貼上文字進行整理。");
+            return;
+        }
+
         String type = manualTypeSelected ? selectedType : DocumentTypeHelper.detectDocumentType(text);
         selectedType = DocumentTypeHelper.normalize(type);
         latestSuggestedName = buildSuggestedName(selectedType);
@@ -188,7 +237,6 @@ public class AIStudyActivity extends AppCompatActivity {
             return;
         }
         ScanDraftStore.setDocumentType(type, true);
-        ScanDraftStore.saveDraft(this);
     }
 
     private void renderEmptyState(String message) {

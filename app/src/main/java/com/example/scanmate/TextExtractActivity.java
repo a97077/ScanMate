@@ -24,7 +24,7 @@ import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -170,18 +170,29 @@ public class TextExtractActivity extends AppCompatActivity {
     }
 
     private void processImageBytes(byte[] imageBytes) {
-        PyObject module = py.getModule("scan_cv");
+        txtTextReport.setText("正在進行 OCR 前處理，請稍候...");
 
-        PyObject previewResult = module.callAttr("text_extract_preview", imageBytes);
-        byte[] outPng = previewResult.toJava(byte[].class);
-        Bitmap preview = BitmapFactory.decodeByteArray(outPng, 0, outPng.length);
-        imgTextPreview.setImageBitmap(preview);
+        new Thread(() -> {
+            try {
+                PyObject module = py.getModule("scan_cv");
 
-        PyObject reportResult = module.callAttr("text_region_report", imageBytes);
-        String regionReport = reportResult.toJava(String.class);
-        Bitmap sourceBitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-        txtTextReport.setText(regionReport + "\n\n正在進行 OCR 文字辨識...");
-        runMlKitOcr(sourceBitmap, regionReport);
+                PyObject previewResult = module.callAttr("text_extract_preview", imageBytes);
+                byte[] outPng = previewResult.toJava(byte[].class);
+                Bitmap preview = BitmapFactory.decodeByteArray(outPng, 0, outPng.length);
+
+                PyObject reportResult = module.callAttr("text_region_report", imageBytes);
+                String regionReport = reportResult.toJava(String.class);
+                Bitmap sourceBitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+                runOnUiThread(() -> {
+                    imgTextPreview.setImageBitmap(preview);
+                    txtTextReport.setText(regionReport + "\n\n正在進行 OCR 文字辨識...");
+                    runMlKitOcr(sourceBitmap, regionReport);
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> txtTextReport.setText("文字提取預處理失敗：\n" + e.getMessage()));
+            }
+        }).start();
     }
 
     private void runMlKitOcr(Bitmap bitmap, String regionReport) {
@@ -191,7 +202,9 @@ public class TextExtractActivity extends AppCompatActivity {
         }
 
         InputImage image = InputImage.fromBitmap(bitmap, 0);
-        TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        TextRecognizer recognizer = TextRecognition.getClient(
+                new ChineseTextRecognizerOptions.Builder().build()
+        );
         recognizer.process(image)
                 .addOnSuccessListener(result -> renderOcrResult(result, regionReport))
                 .addOnFailureListener(e -> txtTextReport.setText(
